@@ -1,0 +1,25 @@
+[Unit]
+Description=IP Changer - rotate the Tor exit IP
+Documentation=file://@INSTALL_DIR@/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=@USER@
+Group=@GROUP@
+SupplementaryGroups=@TOR_GROUP@
+Environment=HOME=@HOME@
+Environment=PYTHONPATH=@INSTALL_DIR@
+ExecStart=@BIN@ run
+Restart=on-failure
+RestartSec=5
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=@HOME@/.config/ipchanger @HOME@/.local/state/ipchanger
+
+[Install]
+WantedBy=multi-user.target
