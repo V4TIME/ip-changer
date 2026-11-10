@@ -84,7 +84,7 @@ def run_checks(
     checks: list[Check] = []
     checks.append(
         Check(
-            "OK" if sys.version_info >= (3, 9) else "FAIL",
+            "OK" if sys.version_info >= (3, 10) else "FAIL",
             "Python",
             f"{platform.python_version()} ({sys.executable})",
         )

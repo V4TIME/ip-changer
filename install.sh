@@ -220,9 +220,9 @@ install_packages
 
 PYTHON_BIN="$(command -v python3 || true)"
 [ -n "$PYTHON_BIN" ] || die "python3 was not found after package installation"
-"$PYTHON_BIN" - <<'PY' || die "Python 3.9 or newer is required"
+"$PYTHON_BIN" - <<'PY' || die "Python 3.10 or newer is required"
 import sys
-if sys.version_info < (3, 9):
+if sys.version_info < (3, 10):
     raise SystemExit(1)
 PY
 TOR_BIN="$(command -v tor || true)"

@@ -303,7 +303,7 @@ bash -n install.sh uninstall.sh
 
 The tests do not need Tor or network access: they use a fake control server, a
 fake SOCKS5 proxy and a local HTTP server. The CI workflow runs them on Python
-3.9, 3.11 and 3.13.
+3.10, 3.11 and 3.13.
 
 ## Uninstall
 
