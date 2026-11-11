@@ -238,7 +238,7 @@ if [ ! -f "$TORRC" ]; then
 fi
 
 log "Configuring Tor control port and cookie authentication..."
-if [ "$IS_TERMUX" -eq 1 ] || [ "$EUID_VALUE" -ne 0 ]; then
+if [ "$IS_TERMUX" -eq 1 ]; then
     CONFIG_OUTPUT="$(python3 "$SCRIPT_DIR/scripts/configure_tor.py" "$TORRC" --control-port 9051)"
 else
     CONFIG_OUTPUT="$("${SUDO[@]}" python3 "$SCRIPT_DIR/scripts/configure_tor.py" "$TORRC" --control-port 9051)"

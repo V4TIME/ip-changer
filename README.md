@@ -1,55 +1,216 @@
+<div align="center">
+
 # IP Changer
 
-**Rotate the Tor exit IP from a terminal or Termux control panel.**
+**Fresh Tor exit IPs on a schedule — from a terminal or Termux control panel.**
 
-IP Changer is a small, dependency-light Python tool that asks a local Tor
-daemon for fresh circuits at a chosen interval, verifies the new exit IP, and
-keeps a live status/log history. It ships a full-screen control panel as well as
-scriptable CLI commands.
+[![Tests](https://github.com/V4TIME/ip-changer/actions/workflows/ci.yml/badge.svg)](https://github.com/V4TIME/ip-changer/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/V4TIME/ip-changer?color=blue)](https://github.com/V4TIME/ip-changer/releases/latest)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
 
-This repository is a from-scratch alternative to
-[`techchipnet/ip-changer`](https://github.com/techchipnet/ip-changer). I studied
-that project first; its bugs, missing features and lack of a control panel are
-documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
+[Quick start](#quick-start) · [Why IP Changer?](#why-choose-ip-changer) · [Chrome setup](#use-it-with-chrome-or-any-app) · [Tutorial](docs/TUTORIAL.md) · [Commands](#command-reference)
 
-**New here? Read the [step-by-step tutorial](docs/TUTORIAL.md)** — install,
-panel keys, interval/logging settings, Termux and troubleshooting.
+</div>
 
-> **Important:** this rotates the **Tor exit IP**. It does not change your
-> ISP-assigned address. An application only benefits if it sends its traffic
-> through Tor's SOCKS port (normally `127.0.0.1:9050`), or if you use a
-> system-wide Tor transparent proxy. Use it for privacy and research, not to
-> evade bans, commit fraud, or break the law.
+---
 
-## Features
+IP Changer asks a local Tor daemon for a new circuit at the interval you choose,
+checks that the exit IP actually changed, and shows everything in a live terminal
+panel. It works on a normal Linux desktop, a server, macOS, and inside Termux on
+Android.
 
-- **Control panel** — live exit IP, previous IP, countdown in seconds, latest
-  log event, start/stop, rotate now, interval/jitter editor, logging and
-  verification toggles, log viewer and diagnostics.
-- **Real scheduler** — one long-running daemon with interval, optional jitter,
-  graceful SIGTERM, and a `next_rotation` timestamp (not a systemd restart
-  trick).
-- **Verified rotations** — sends `SIGNAL NEWNYM`, waits for a new circuit,
-  compares with the previous IP, validates the result, and checks `IsTor`.
-- **Zero runtime dependencies** — Python 3 standard library only. No `curl`,
-  `jq`, `nc`, `xxd`, `requests` or `PySocks`.
-- **Correct Tor auth** — discovers `PROTOCOLINFO`, cookie path, and supports
-  cookie, password or null authentication.
-- **Safe installer** — torrc backup + validation, marked block, correct Tor
-  group discovery, no root service executing a user-writable script.
-- **Termux ready** — no systemd required; uses `termux-services` when available
-  and otherwise gives a boot-script/manual path.
-- **Structured state and logs** — atomic JSON state, rotated JSONL logs, file
-  lock to prevent concurrent rotations. Logging can be switched off from the
-  panel (`g`) or with `ipchanger logs --off`.
-- **Diagnostics** — `ipchanger doctor` checks Python, Tor, control auth, cookie
-  permissions, SOCKS, daemon state and the live exit IP.
-- **Tested** — 45 unit tests for the control protocol, SOCKS5/HTTP client,
-  config, logging, rotator, scheduler and CLI; CI workflow included.
-- **Clean uninstall** — removes the service, files, wrapper and managed torrc
-  block; `--purge` also removes config/history.
+> **Read this first:** it rotates the **Tor exit IP**, not your ISP-assigned
+> address. An app only gets a new visible IP if it sends traffic through Tor's
+> SOCKS proxy (`127.0.0.1:9050`). [Set up Chrome or another app →](#use-it-with-chrome-or-any-app)
 
-## Control panel preview
+## Quick start
+
+### Linux — one command
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | sudo bash -s -- --interval 5m
+```
+
+### macOS — one command
+
+Run it **without** `sudo` so Homebrew can install as your user; the installer
+asks for sudo only for the torrc step:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bash -s -- --interval 5m
+```
+
+### Android / Termux — one command
+
+```bash
+pkg install -y curl
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bash -s -- --interval 5m
+```
+
+### Then open the panel
+
+```bash
+ipchanger doctor      # confirm Tor, the control port and SOCKS work
+ipchanger panel       # start/stop, rotate now, change interval, logs, doctor
+```
+
+That is the whole setup. The installer adds Tor, configures the control port,
+installs the `ipchanger` command, starts the background service when the
+platform supports it, and runs diagnostics for you.
+
+<details>
+<summary><b>What the installer changes (and how to undo it)</b></summary>
+
+1. Installs `tor` and Python 3.10+ with your package manager.
+2. Backs up torrc and adds a marked control-port/cookie block, then validates it
+   with `tor --verify-config`.
+3. Adds your user to the real Tor group (`debian-tor`, `tor`, `toranon` or `_tor`).
+4. Installs to `/opt/ip-changer` + `/usr/local/bin/ipchanger` (or a per-user
+   prefix without root, or `$PREFIX/share/ip-changer` on Termux).
+5. Starts Tor, waits for the control port, creates the service, and runs
+   `ipchanger doctor --quick`.
+6. Prints the panel/status/log commands when it finishes.
+
+Nothing is hidden: `--dry-run` shows the plan, `--no-service` skips the service,
+and `--interval` avoids the prompt. Uninstall with `sudo ./uninstall.sh`; add
+`--purge` to remove config, state and logs.
+
+</details>
+
+### Prefer a clone?
+
+```bash
+git clone https://github.com/V4TIME/ip-changer.git
+cd ip-changer
+sudo ./install.sh --interval 5m
+ipchanger doctor
+ipchanger panel
+```
+
+### Supported platforms
+
+| Platform | Install | Service |
+|----------|---------|---------|
+| Debian, Ubuntu, Kali, Parrot | one command | systemd |
+| Arch, Manjaro, Fedora, openSUSE | one command | systemd |
+| Alpine | one command | manual `ipchanger start` |
+| macOS | one command | manual `ipchanger start` |
+| Android / Termux | one command, no root | termux-services or boot script |
+| Windows | not supported natively | use WSL2 or a Linux VM |
+
+Python 3.10 or newer is required. There are **no runtime dependencies** beyond
+the standard library and Tor. macOS uses Homebrew; Alpine and macOS have no
+systemd, so the installer starts Tor and tells you to use `ipchanger start`.
+
+## Why choose IP Changer?
+
+Most “IP changer” scripts only fire `SIGNAL NEWNYM` and print an IP. This one is
+built like a small service: it verifies the result, keeps state, exposes a real
+scheduler, and stays out of your way.
+
+- **It proves the change.** Waits for a new exit, compares old/new IPs, validates
+  the response, and checks `IsTor`.
+- **It schedules properly.** One long-running daemon with interval + optional
+  jitter, not a systemd `RestartSec` hack.
+- **It is safe by default.** No root service running a user-writable script;
+  torrc edits are backed up, marked, and validated.
+- **It is made for Termux.** No systemd requirement, no root, battery-friendly
+  start/stop and boot-script support.
+- **You control the logs.** JSONL history can be turned off from the panel (`g`)
+  or with `ipchanger logs --off`.
+- **Zero dependencies.** The Tor control protocol, SOCKS5 client and HTTP checks
+  are implemented in Python.
+
+### Compared with the alternatives
+
+| | **IP Changer** | [techchipnet/ip-changer](https://github.com/techchipnet/ip-changer) | Manual Tor + `NEWNYM` | VPN |
+|---|---|---|---|---|
+| Scheduled rotation | ✅ | ✅ | ❌ | ❌ |
+| Verifies the new exit IP | ✅ | ❌ | ❌ | ❌ |
+| Terminal control panel | ✅ | ❌ | ❌ | ❌ |
+| Runs as a non-root user | ✅ | ❌ root service | ✅ | ✅ |
+| Termux / Android | ✅ | ❌ | Manual | App only |
+| Safe, validated torrc edits | ✅ | ❌ blind append | Manual | N/A |
+| Logging can be disabled | ✅ | ❌ broken path | ❌ | N/A |
+| Setup | one command | two scripts | several steps | account/app |
+| Cost | free, MIT | free | free | usually paid |
+
+The line-by-line review of the original project is in
+[`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md). In short: it installs a
+root service that runs a script from a user-writable home directory, requires
+`nc` without installing it, logs to the literal path `HOME/tor_ip_log.txt`, and
+uses the systemd restart delay as the rotation timer.
+
+## Use it with Chrome (or any app)
+
+Rotating the Tor circuit is only half the job — the app must use Tor. These
+instructions connect Chrome, Chromium, Edge, Brave or Firefox to the local Tor
+SOCKS proxy.
+
+### Chrome / Chromium / Edge / Brave (desktop)
+
+Launch the browser with a dedicated profile and the SOCKS proxy:
+
+```bash
+# Linux
+google-chrome --proxy-server="socks5://127.0.0.1:9050" \
+  --user-data-dir="$HOME/.config/chrome-tor"
+```
+
+```bash
+# Chromium / Edge / Brave: replace the binary name
+chromium --proxy-server="socks5://127.0.0.1:9050" \
+  --user-data-dir="$HOME/.config/chrome-tor"
+```
+
+```bash
+# macOS
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" \
+  --proxy-server="socks5://127.0.0.1:9050" \
+  --user-data-dir="$HOME/.config/chrome-tor"
+```
+
+Then open <https://check.torproject.org/>. You should see **“Congratulations.
+This browser is configured to use Tor.”** Keep using this window/profile; normal
+Chrome windows still use your direct connection.
+
+### Firefox
+
+1. **Settings → General → Network Settings → Settings…**
+2. Choose **Manual proxy configuration**.
+3. Set **SOCKS Host** to `127.0.0.1` and **Port** to `9050`.
+4. Select **SOCKS v5**.
+5. Tick **Proxy DNS when using SOCKS v5**.
+6. Open <https://check.torproject.org/> to verify.
+
+### Android / Termux and Chrome
+
+Android Chrome does **not** have a built-in SOCKS proxy setting. Use one of these:
+
+- **Orbot (VPN mode)** — routes Chrome and other apps through Tor. Use Orbot’s
+  own new-identity control, or point IP Changer at Orbot’s control port if you
+  have enabled it.
+- **A SOCKS5-capable browser or proxy/VPN front-end** — advanced; make sure it
+  targets `127.0.0.1:9050`.
+- **Desktop browser** — the simplest way to test per-app proxy settings with the
+  Termux Tor daemon.
+
+IP Changer still rotates the Termux Tor daemon; Chrome simply cannot use that
+SOCKS port without a VPN/proxy layer on Android.
+
+### Any command-line app
+
+Use `torsocks`, `proxychains`, or the app’s own SOCKS5 option:
+
+```bash
+torsocks curl https://check.torproject.org/api/ip
+ipchanger ip          # the exit IP IP Changer sees through Tor
+```
+
+Full browser and Android notes: [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md).
+
+## Control panel
 
 ```text
 + IP Changer 1.1.0 -------------------------------------------------+
@@ -72,199 +233,13 @@ panel keys, interval/logging settings, Termux and troubleshooting.
 +------------------------------------------------------------------+
 ```
 
-## Quick start
-
-### One command (Linux, macOS, Termux)
-
-```bash
-curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | sudo bash -s -- --interval 5m
-```
-
-On Termux omit `sudo` (there is no root):
-
-```bash
-pkg install -y curl
-curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bash -s -- --interval 5m
-```
-
-`get.sh` downloads the repository tarball, verifies it contains the installer,
-and runs `install.sh` with the arguments you passed. Nothing is left behind in
-the current directory. Pin a release by passing the variable to `bash`:
-`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.1.0 bash -s -- --interval 5m`,
-or read the script first with `curl -fsSL .../get.sh | less`.
-
-### From a clone
-
-```bash
-git clone https://github.com/V4TIME/ip-changer.git
-cd ip-changer
-sudo ./install.sh --interval 5m
-ipchanger doctor
-ipchanger panel
-```
-
-### What `install.sh` actually does
-
-The installer is one idempotent script. Run it as root (`sudo ./install.sh`), as
-a normal user (it re-executes privileged steps through `sudo`), or on Termux
-(no root). It works in this order:
-
-1. **Detects the environment** — Linux distro/package manager, macOS/Homebrew,
-   or Termux; resolves the real target user from `SUDO_USER` (or `--user`), so
-   files and services belong to you rather than to root.
-2. **Installs prerequisites** — `tor` plus Python 3 with `apt`, `pacman`, `dnf`,
-   `zypper`, `apk`, `brew` or `pkg`; checks that Python is 3.10 or newer.
-3. **Configures Tor safely** — writes a marked
-   `# BEGIN ip-changer managed block` to torrc with `ControlPort`, cookie
-   authentication and `CookieAuthFileGroupReadable`. It backs up torrc first,
-   removes an old copy of its own block on re-run, detects an existing
-   `SocksPort`/`ControlPort`, and validates the result with `tor --verify-config`.
-4. **Fixes cookie permissions** — discovers the real Tor group (`debian-tor`,
-   `tor`, `toranon` or `_tor`) and adds the target user to it. If a re-login is
-   needed, the installer says so.
-5. **Installs the program** — copies the package to `/opt/ip-changer` (or a
-   per-user prefix without root, or `$PREFIX/share/ip-changer` on Termux) and
-   writes the `ipchanger` wrapper to `/usr/local/bin` (or `~/.local/bin`).
-6. **Writes your config** — stores the interval, detected control port and SOCKS
-   port in the target user's `~/.config/ipchanger/config.json`.
-7. **Starts Tor and waits** — enables/restarts the distro's Tor service (or
-   starts Tor in the background on Termux) and waits up to 25 seconds for the
-   control port to accept connections.
-8. **Registers the background runner** — on systemd, renders
-   `ipchanger.service` as the invoking user and starts it; on Termux, creates
-   `termux-services` entries or a `~/.termux/boot/start-ipchanger` fallback;
-   elsewhere it tells you to use `ipchanger start`.
-9. **Runs `ipchanger doctor --quick`** and prints the panel/status/rotate
-   commands. Nothing is hidden: use `--dry-run` to see the plan, `--no-service`
-   to skip the service, and `--interval` to avoid the prompt.
-
-If it says you were added to the Tor group, log out and back in (or run
-`newgrp debian-tor`) once so your shell can read the cookie. The systemd service
-gets the group immediately.
-
-### Did the upstream repo install the same way?
-
-**Partly, but the details are very different.** `techchipnet/ip-changer` does
-perform the same four broad steps — install Tor, edit torrc, add the user to a
-Tor group, and register a background job — but it ships two drifting installer
-scripts (`ip-changer.sh` for a foreground loop and `setup.sh` for systemd) and
-takes several unsafe shortcuts:
-
-| Install step | `techchipnet/ip-changer` | This project |
-|--------------|--------------------------|--------------|
-| Package install | `tor curl jq xxd`; `nc` is required but never installed, README lists unused `fq` | `tor` + Python 3 only; no shell tools needed |
-| torrc changes | Blind `grep`/append, no backup, no validation; misses indented/other-port directives | Managed block, backup, port detection, `tor --verify-config` |
-| Tor group | Hard-codes `debian-tor`/`tor`; under `sudo` often adds `root` | Discovers the real group and adds `SUDO_USER`/`--user` |
-| Install location | Copies a script into `/home/$USER`, then `sed`s `HOME` | Fixed `/opt/ip-changer` (or user/Termux prefix) + wrapper |
-| Service identity | Root systemd unit executing a user-writable script | Runs as the invoking user, with hardening |
-| Timing | Abuses `RestartSec` on a `Restart=always` one-shot unit | One long-running scheduler process |
-| Re-running | `sed -i` dirties the clone and is not idempotent | Safe to re-run; renders the unit outside the repo |
-| Platforms | Six Linux distros, systemd only | Debian/Ubuntu/Kali/Parrot, Arch, Fedora, openSUSE, Alpine, macOS, Termux |
-| Uninstall | Removes the unit and script; leaves torrc lines and group membership | Removes files/service/managed torrc block; `--purge` clears state |
-| Verification | None; installer can "succeed" while rotation is broken | Waits for the control port and runs `doctor` at the end |
-
-So: the upstream installer does roughly the same *job*, but not the same *way*,
-and its shortcuts are the reason this project has its own installer. The
-line-by-line evidence is in
-[`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
-
-### Termux
-
-```bash
-pkg install -y git python tor
-git clone https://github.com/V4TIME/ip-changer.git
-cd ip-changer
-./install.sh --interval 5m
-ipchanger doctor
-ipchanger panel
-```
-
-No root is needed. If `termux-services` is available, the installer creates
-`tor` and `ipchanger` services. Otherwise it starts Tor in the background and
-writes `~/.termux/boot/start-ipchanger` (requires the Termux:Boot app) so you can
-keep it running after a reboot. You can always run it manually:
-
-```bash
-ipchanger start
-ipchanger status
-```
-
-### Run from a clone without installing
-
-```bash
-python3 -m ipchanger --help
-python3 -m ipchanger doctor
-python3 -m ipchanger panel
-```
-
-Tor must already be running with a control port; the installer is the easy path
-for that.
-
-## Everyday usage
-
-```bash
-ipchanger                     # open the control panel
-ipchanger panel               # same thing, explicit
-ipchanger doctor              # check Tor, cookie, SOCKS, daemon and exit IP
-ipchanger start               # start automatic rotation in the background
-ipchanger status              # service, exit IP, last change, countdown
-ipchanger status --json       # machine-readable status
-ipchanger rotate              # NEWNYM once, wait, verify, log
-ipchanger rotate --no-verify  # just signal NEWNYM
-ipchanger ip                  # current Tor exit IP
-ipchanger logs --follow       # follow structured rotation events
-ipchanger logs --off          # stop writing new log entries
-ipchanger logs --on           # enable logging again
-ipchanger stop                # stop the background daemon
-```
-
-Useful configuration changes:
-
-```bash
-ipchanger config list
-ipchanger config get interval
-ipchanger config set interval 5m
-ipchanger config set jitter 20             # add 0-20% random delay
-ipchanger config set log_enabled false     # same as: ipchanger logs --off
-ipchanger config set require_tor true      # fail if IsTor cannot be confirmed
-ipchanger config set check_urls '["https://check.torproject.org/api/ip"]'
-ipchanger config reset
-```
-
-After `config set`, restart a running daemon to apply it:
-
-```bash
-ipchanger restart
-```
-
-The control panel applies interval/jitter changes immediately by restarting the
-daemon for you.
-
-### Command reference
-
-| Command | What it does |
-|---------|--------------|
-| `ipchanger [panel]` | Open the interactive control panel. |
-| `ipchanger run` | Run the scheduler in the foreground (used by systemd/Termux services). `--once` rotates once and exits. |
-| `ipchanger start` / `stop` / `restart` | Manage the detached daemon. `--interval` and `--jitter` override for that run. |
-| `ipchanger status [--json]` | Show daemon state, exit IP, last/next change and counters. |
-| `ipchanger rotate [--json] [--no-verify] [--no-wait]` | Rotate once and verify. |
-| `ipchanger ip [--json]` | Fetch the current exit IP through Tor. |
-| `ipchanger config list/get/set/reset` | Inspect or edit JSON configuration. |
-| `ipchanger logs [--lines N] [--follow] [--json]` | Read or follow the JSONL log. |
-| `ipchanger logs --on` / `--off` / `--status` | Enable, disable or inspect rotation logging. |
-| `ipchanger doctor [--quick]` | Diagnose the environment. |
-| `ipchanger --config PATH ...` | Use a custom config file. |
-
-### Control panel keys
-
 | Key | Action |
 |-----|--------|
-| `s` | Start/stop the background daemon. |
-| `r` | Rotate now (NEWNYM + wait + verify) in a worker thread. |
-| `v` | Fetch the current exit IP. |
-| `i` | Change interval (`90`, `5m`, `1h30m`; minimum 10s). |
-| `j` | Change jitter (0-100%). |
+| `s` | Start or stop the background daemon. |
+| `r` | Rotate now: `SIGNAL NEWNYM`, wait, verify, log. |
+| `v` | Fetch the current exit IP through Tor. |
+| `i` | Change the interval (`90`, `5m`, `1h30m`; minimum 10s). |
+| `j` | Change jitter (0–100% random extra delay). |
 | `g` | Turn rotation logging on/off. |
 | `t` | Turn exit-IP verification on/off. |
 | `l` | Browse the rotation log. |
@@ -273,105 +248,106 @@ daemon for you.
 | `?` / `h` | Help. |
 | `q` | Leave the panel; the daemon keeps running. |
 
-## How it works
+## Command reference
 
-```text
-panel/CLI -> scheduler -> rotator -> Tor control port (SIGNAL NEWNYM)
-                               \--> SOCKS5 -> HTTPS check -> exit IP
-                               \--> state.json + JSONL log
+```bash
+ipchanger                     # open the control panel
+ipchanger panel               # same thing, explicit
+ipchanger doctor              # check Tor, auth, SOCKS, daemon and exit IP
+ipchanger start               # start automatic rotation in the background
+ipchanger status              # service, exit IP, last change, countdown
+ipchanger status --json       # machine-readable status
+ipchanger rotate              # NEWNYM once, wait, verify, log
+ipchanger ip                  # current Tor exit IP
+ipchanger logs --follow       # follow rotation events
+ipchanger logs --off          # stop writing new log entries
+ipchanger logs --on           # enable logging again
+ipchanger stop                # stop the background daemon
 ```
 
-1. Read the last IP from state (or establish a baseline through Tor).
-2. Respect Tor's 10-second NEWNYM rate limit.
-3. Authenticate to `ControlPort 9051` (cookie, password or null).
-4. Send `SIGNAL NEWNYM`.
-5. Poll a check endpoint through `127.0.0.1:9050` until the exit IP changes or
-   the timeout expires.
-6. Verify `IsTor`, store the new IP/previous IP/counters, append a JSONL event.
-7. Sleep for the configured interval (plus optional jitter), then repeat.
+| Command | What it does |
+|---------|--------------|
+| `ipchanger [panel]` | Open the interactive control panel. |
+| `ipchanger run` | Run the scheduler in the foreground (`--once` for one rotation). |
+| `ipchanger start` / `stop` / `restart` | Manage the detached daemon. |
+| `ipchanger status [--json]` | Show daemon state, exit IP, last/next change and counters. |
+| `ipchanger rotate [--json] [--no-verify] [--no-wait]` | Rotate once and verify. |
+| `ipchanger ip [--json]` | Fetch the current exit IP through Tor. |
+| `ipchanger config list/get/set/reset` | Inspect or edit JSON configuration. |
+| `ipchanger logs [--lines N] [--follow] [--json]` | Read or follow the JSONL log. |
+| `ipchanger logs --on/--off/--status` | Enable, disable or inspect logging. |
+| `ipchanger doctor [--quick]` | Diagnose the environment. |
 
-Read [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the module map, the raw
-control-protocol exchange, the SOCKS5 handshake, and all data paths.
+## Configuration
 
-### Paths
+```bash
+ipchanger config list
+ipchanger config get interval
+ipchanger config set interval 5m
+ipchanger config set jitter 20             # add 0–20% random delay
+ipchanger config set log_enabled false     # same as: ipchanger logs --off
+ipchanger config set require_tor true      # fail if IsTor cannot be confirmed
+ipchanger config set check_urls '["https://check.torproject.org/api/ip"]'
+ipchanger config reset
+ipchanger restart                          # apply changes to a running daemon
+```
+
+| Option | Default | Why you may change it |
+|--------|---------|-----------------------|
+| `interval` | `120` | How often to request a new circuit (minimum 10s). |
+| `jitter` | `0` | Random extra delay (0–100%) so rotations are less regular. |
+| `verify` | `true` | Check the new exit IP through Tor after each rotation. |
+| `wait_for_change` | `true` | Wait until the exit actually changes (or time out). |
+| `require_tor` | `false` | Fail if `IsTor` cannot be confirmed. |
+| `change_timeout` | `45` | Seconds to wait for a new exit. |
+| `check_urls` | Tor Project + fallbacks | Exit-IP check endpoints. |
+| `log_enabled` | `true` | Write rotation/daemon events to the JSONL log. |
+| `control_port` | `9051` | Tor control port. |
+| `socks_port` | `9050` | Tor SOCKS port used by apps and verification. |
+| `auth_method` | `auto` | `auto`, `cookie`, `password` or `null`. |
+
+Paths:
 
 | Purpose | Default |
 |---------|---------|
 | Config | `~/.config/ipchanger/config.json` |
 | State | `~/.local/state/ipchanger/state.json` |
-| Log | `~/.local/state/ipchanger/ipchanger.log` |
+| Rotation log | `~/.local/state/ipchanger/ipchanger.log` |
 | Daemon output | `~/.local/state/ipchanger/daemon.log` |
-| PID / lock | `~/.local/state/ipchanger/ipchanger.pid` / `.lock` |
-
-## What I found in the upstream project
-
-The full line-by-line review is in
-[`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md). The highest-impact
-findings:
-
-| Severity | Upstream issue | This project |
-|----------|----------------|--------------|
-| Critical | The systemd unit runs as root and executes a script from a user-writable home directory. | Runs as the invoking user from a fixed install directory, with hardening. |
-| High | `change_tor_ip.sh` logs to `HOME/tor_ip_log.txt` (missing `$`). | State/log paths are explicit and private. |
-| High | Requires `nc` but never installs it; README lists unused `fq`; omits `xxd`/`jq`/`nc`. | No shell utilities; the control protocol and SOCKS5/HTTP are implemented in Python. |
-| High | Accepts `abc`, `0`, negative or 1-second intervals; `sleep` fails or spins; Tor ignores NEWNYM under 10s. | Duration parser and hard minimum of 10 seconds. |
-| High | No timeouts/retry/`--fail`; can log `null` or hang. | Timeouts, retries/fallback endpoints, IP validation, `IsTor` check. |
-| High | Sends NEWNYM and immediately checks, so it can report the old IP. | Waits for the exit to change, with a timeout and an honest warning if Tor reuses an exit. |
-| High | `grep`/append torrc without backup or validation; misses existing/indented directives. | Marked block, backup, port discovery, `tor --verify-config`. |
-| High | Uses systemd `RestartSec` as the rotation interval. | A real scheduler in one long-running process. |
-| Medium | Adds `root` to the Tor group under `sudo`; Fedora group is normally `toranon`. | Uses `SUDO_USER`/`--user` and discovers the real group. |
-| Medium | No control panel, state, status, logs, diagnostics or Termux support. | All included. |
-
-**What upstream is missing most:** it never routes applications through Tor. It
-only rotates the daemon's circuits and prints a number. If an app is not using
-SOCKS `127.0.0.1:9050`, its visible IP will not change. This project makes that
-limitation explicit and verifies the exit through Tor.
-
-## Comparison
-
-| Capability | `techchipnet/ip-changer` | This project |
-|------------|--------------------------|--------------|
-| Tor circuit rotation | Yes (shell + `nc`) | Yes (implemented control protocol) |
-| Control panel | No | Full curses panel + text fallback |
-| Interval validation | No | Minimum 10s, duration parser |
-| Wait for new circuit | No | Yes, with timeout |
-| `IsTor` verification | No | Yes (fails on explicit non-Tor) |
-| State/countdown | No | JSON state + live countdown |
-| Structured logs | Broken path | Rotated JSONL + viewer |
-| Cookie discovery | Hard-coded path | `PROTOCOLINFO` + override |
-| Password/null auth | No | Yes |
-| Termux | No | Yes |
-| Root service executing user script | Yes | No; runs as user |
-| torrc safety | Append only | Backup + managed block + verify |
-| Diagnostics | No | `ipchanger doctor` |
-| Tests/CI | No | 45 tests + GitHub Actions |
-| Uninstall | Partial | Service/files/torrc + `--purge` |
 
 ## Termux notes
 
-- No systemd. Use `ipchanger start/stop/status` or `termux-services`.
-- If you use Termux:Boot, the installer writes
-  `~/.termux/boot/start-ipchanger`; the Termux:Boot app must be installed and
-  opened once.
-- Battery optimisation can kill background processes. Run
-  `termux-wake-lock` (the boot script does this) and exempt Termux from battery
-  optimisation.
-- Tor can be slow to bootstrap on mobile networks. Run `ipchanger doctor` and
-  check the Tor log if the control port never opens.
+- No root and no systemd required.
+- If `termux-services` is installed, the installer creates `tor` and `ipchanger`
+  services. Otherwise it starts Tor in the background and writes
+  `~/.termux/boot/start-ipchanger` for the Termux:Boot app.
+- Run `termux-wake-lock` and exempt Termux from battery optimisation so Android
+  does not kill the daemon.
+- Chrome on Android needs Orbot/VPN mode; see
+  [the browser guide](docs/BROWSER_SETUP.md).
 
 ## Troubleshooting
 
 | Symptom | Fix |
 |---------|-----|
-| `cannot connect to the Tor control port` | Start Tor (`sudo systemctl start tor`, or `tor &` in Termux) and confirm `ControlPort 9051` is in torrc. Run `ipchanger doctor`. |
-| `cannot read Tor cookie` / authentication failed | Add your user to the Tor group (`debian-tor`, `tor` or `toranon`) and log in again, or set `auth_method=password` with a Tor control password. |
-| `SOCKS port` connection refused | Tor is not running, or `SocksPort` is disabled. Check torrc and `ipchanger doctor`. |
-| Exit IP does not change | Tor may reuse an exit; wait for the next interval. Some networks force a single exit. Check the warning in `ipchanger logs`. |
-| Websites block the IP | Many sites block Tor exits. Try another rotation or accept that Tor is not suitable for that site. |
-| Interval change did nothing | `ipchanger restart` after `config set`; the panel restarts automatically. |
+| `cannot connect to the Tor control port` | Start Tor (`sudo systemctl start tor`, or `tor &` in Termux) and run `ipchanger doctor`. |
+| Cookie/authentication error | Add your user to the Tor group and log in again, or set `auth_method=password`. |
+| `SOCKS port` connection refused | Tor is not running or `SocksPort` is disabled. |
+| Chrome still shows the old IP | Launch Chrome with `--proxy-server="socks5://127.0.0.1:9050"` and verify at <https://check.torproject.org/>. |
+| Exit IP does not change | Tor may reuse an exit; wait for the next interval or rotate again. |
 | No new log entries | Logging may be off: `ipchanger logs --status`, then `ipchanger logs --on`. |
-| Service keeps restarting | `systemctl status ipchanger.service` and `journalctl -u ipchanger.service -n 100`; then `ipchanger doctor`. |
-| `PYTHONPATH`/module not found | Use the installed wrapper `ipchanger`, or run `python3 -m ipchanger` from the repository root. |
+| Interval change did nothing | `ipchanger restart` after `config set`; the panel restarts automatically. |
+| Service keeps restarting | `systemctl status ipchanger.service` and `journalctl -u ipchanger.service -n 100`. |
+
+## Documentation
+
+- [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — complete walkthrough of every step.
+- [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md) — Chrome, Firefox, Android,
+  `torsocks` and verification.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module map and data flow.
+- [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and safe defaults.
+- [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
+  of the original project.
 
 ## Development
 
@@ -380,20 +356,11 @@ git clone https://github.com/V4TIME/ip-changer.git
 cd ip-changer
 python3 -m unittest discover -s tests -v
 python3 -m compileall -q ipchanger scripts
-bash -n install.sh uninstall.sh
+bash -n install.sh uninstall.sh get.sh
 ```
 
-The tests do not need Tor or network access: they use a fake control server, a
-fake SOCKS5 proxy and a local HTTP server. The CI workflow runs them on Python
-3.10, 3.11 and 3.13.
-
-## Documentation
-
-- [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — install, panel tour, interval,
-  logging on/off, Termux and troubleshooting.
-- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module map and data flow.
-- [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
-  of the original project.
+The tests need no Tor or network: they use a fake control server, a fake SOCKS5
+proxy and a local HTTP server. CI runs them on Python 3.10, 3.11 and 3.13.
 
 ## Uninstall
 
@@ -412,5 +379,5 @@ MIT. See [`LICENSE`](LICENSE).
 ## Credits
 
 The original idea and demo: [TechChip / techchipnet](https://github.com/techchipnet/ip-changer).
-This alternative keeps the core NEWNYM idea, adds a control panel and a tested
+This alternative keeps the core `NEWNYM` idea, adds a control panel and a tested
 implementation, and documents the original's pitfalls.

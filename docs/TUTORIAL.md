@@ -63,6 +63,24 @@ ipchanger panel       # open the control panel
 `doctor` should end with `[ OK ]` lines. If it reports a failure, fix that line
 before starting the daemon.
 
+### Connect Chrome, Firefox or another app
+
+Rotating the circuit only changes the IP of apps that use Tor's SOCKS proxy
+(`127.0.0.1:9050`). The short version:
+
+```bash
+# Desktop Chrome/Chromium/Edge/Brave
+google-chrome --proxy-server="socks5://127.0.0.1:9050" \
+  --user-data-dir="$HOME/.config/chrome-tor"
+```
+
+Firefox: **Settings → Network Settings → Manual proxy → SOCKS Host
+`127.0.0.1`, Port `9050`, SOCKS v5**, and enable **Proxy DNS**.
+
+Android Chrome has no SOCKS setting; use Orbot's VPN mode or a proxy/VPN
+front-end. Full instructions, including Android and `torsocks`:
+[`BROWSER_SETUP.md`](BROWSER_SETUP.md).
+
 ## 3. The control panel
 
 ```text

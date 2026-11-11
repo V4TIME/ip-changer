@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Rewrote the README with a one-command quick start, platform table, a
+  “Why choose IP Changer?” comparison, and a Chrome/Firefox setup section.
+- Added `docs/BROWSER_SETUP.md` with desktop Chrome/Chromium/Edge/Brave,
+  Firefox, Android/Orbot, `torsocks` and `proxychains` instructions.
+- Fixed the installer's torrc step to use sudo when run as a non-root user
+  (also makes the documented macOS no-sudo install work).
+
 ## 1.1.0 - 2026-11-11
 
 - Added a logging switch: `ipchanger logs --on/--off/--status` and panel key `g`.
