@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Added `get.sh`, a one-command bootstrap that downloads the repository and runs
+  the installer with any `install.sh` arguments.
+- Documented the full installation sequence and compared it step by step with
+  the upstream `techchipnet/ip-changer` installer.
+
 ## 1.0.0 - 2026-11-10
 
 Initial release.

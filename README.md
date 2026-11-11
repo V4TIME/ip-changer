@@ -67,7 +67,26 @@ documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 
 ## Quick start
 
-### Debian / Ubuntu / Kali / Parrot / Arch / Fedora / openSUSE / Alpine
+### One command (Linux, macOS, Termux)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | sudo bash -s -- --interval 5m
+```
+
+On Termux omit `sudo` (there is no root):
+
+```bash
+pkg install -y curl
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bash -s -- --interval 5m
+```
+
+`get.sh` downloads the repository tarball, verifies it contains the installer,
+and runs `install.sh` with the arguments you passed. Nothing is left behind in
+the current directory. Pin a release by passing the variable to `bash`:
+`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.0.0 bash -s -- --interval 5m`,
+or read the script first with `curl -fsSL .../get.sh | less`.
+
+### From a clone
 
 ```bash
 git clone https://github.com/V4TIME/ip-changer.git
@@ -77,21 +96,70 @@ ipchanger doctor
 ipchanger panel
 ```
 
-The installer:
+### What `install.sh` actually does
 
-1. installs `tor` and Python 3 with the native package manager,
-2. adds `ControlPort 9051`, cookie authentication and group-readable cookie
-   settings to torrc (backed up and validated),
-3. adds the invoking user to the correct Tor group (`debian-tor`, `tor`,
-   `toranon` or `_tor`),
-4. installs the Python package to `/opt/ip-changer` and a wrapper at
-   `/usr/local/bin/ipchanger`,
-5. enables and starts `ipchanger.service` as the invoking user,
-6. runs diagnostics and prints the next commands.
+The installer is one idempotent script. Run it as root (`sudo ./install.sh`), as
+a normal user (it re-executes privileged steps through `sudo`), or on Termux
+(no root). It works in this order:
+
+1. **Detects the environment** — Linux distro/package manager, macOS/Homebrew,
+   or Termux; resolves the real target user from `SUDO_USER` (or `--user`), so
+   files and services belong to you rather than to root.
+2. **Installs prerequisites** — `tor` plus Python 3 with `apt`, `pacman`, `dnf`,
+   `zypper`, `apk`, `brew` or `pkg`; checks that Python is 3.10 or newer.
+3. **Configures Tor safely** — writes a marked
+   `# BEGIN ip-changer managed block` to torrc with `ControlPort`, cookie
+   authentication and `CookieAuthFileGroupReadable`. It backs up torrc first,
+   removes an old copy of its own block on re-run, detects an existing
+   `SocksPort`/`ControlPort`, and validates the result with `tor --verify-config`.
+4. **Fixes cookie permissions** — discovers the real Tor group (`debian-tor`,
+   `tor`, `toranon` or `_tor`) and adds the target user to it. If a re-login is
+   needed, the installer says so.
+5. **Installs the program** — copies the package to `/opt/ip-changer` (or a
+   per-user prefix without root, or `$PREFIX/share/ip-changer` on Termux) and
+   writes the `ipchanger` wrapper to `/usr/local/bin` (or `~/.local/bin`).
+6. **Writes your config** — stores the interval, detected control port and SOCKS
+   port in the target user's `~/.config/ipchanger/config.json`.
+7. **Starts Tor and waits** — enables/restarts the distro's Tor service (or
+   starts Tor in the background on Termux) and waits up to 25 seconds for the
+   control port to accept connections.
+8. **Registers the background runner** — on systemd, renders
+   `ipchanger.service` as the invoking user and starts it; on Termux, creates
+   `termux-services` entries or a `~/.termux/boot/start-ipchanger` fallback;
+   elsewhere it tells you to use `ipchanger start`.
+9. **Runs `ipchanger doctor --quick`** and prints the panel/status/rotate
+   commands. Nothing is hidden: use `--dry-run` to see the plan, `--no-service`
+   to skip the service, and `--interval` to avoid the prompt.
 
 If it says you were added to the Tor group, log out and back in (or run
 `newgrp debian-tor`) once so your shell can read the cookie. The systemd service
 gets the group immediately.
+
+### Did the upstream repo install the same way?
+
+**Partly, but the details are very different.** `techchipnet/ip-changer` does
+perform the same four broad steps — install Tor, edit torrc, add the user to a
+Tor group, and register a background job — but it ships two drifting installer
+scripts (`ip-changer.sh` for a foreground loop and `setup.sh` for systemd) and
+takes several unsafe shortcuts:
+
+| Install step | `techchipnet/ip-changer` | This project |
+|--------------|--------------------------|--------------|
+| Package install | `tor curl jq xxd`; `nc` is required but never installed, README lists unused `fq` | `tor` + Python 3 only; no shell tools needed |
+| torrc changes | Blind `grep`/append, no backup, no validation; misses indented/other-port directives | Managed block, backup, port detection, `tor --verify-config` |
+| Tor group | Hard-codes `debian-tor`/`tor`; under `sudo` often adds `root` | Discovers the real group and adds `SUDO_USER`/`--user` |
+| Install location | Copies a script into `/home/$USER`, then `sed`s `HOME` | Fixed `/opt/ip-changer` (or user/Termux prefix) + wrapper |
+| Service identity | Root systemd unit executing a user-writable script | Runs as the invoking user, with hardening |
+| Timing | Abuses `RestartSec` on a `Restart=always` one-shot unit | One long-running scheduler process |
+| Re-running | `sed -i` dirties the clone and is not idempotent | Safe to re-run; renders the unit outside the repo |
+| Platforms | Six Linux distros, systemd only | Debian/Ubuntu/Kali/Parrot, Arch, Fedora, openSUSE, Alpine, macOS, Termux |
+| Uninstall | Removes the unit and script; leaves torrc lines and group membership | Removes files/service/managed torrc block; `--purge` clears state |
+| Verification | None; installer can "succeed" while rotation is broken | Waits for the control port and runs `doctor` at the end |
+
+So: the upstream installer does roughly the same *job*, but not the same *way*,
+and its shortcuts are the reason this project has its own installer. The
+line-by-line evidence is in
+[`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 
 ### Termux
 
