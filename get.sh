@@ -9,7 +9,7 @@ set -euo pipefail
 
 REPO="${IPCHANGER_REPO:-V4TIME/ip-changer}"
 REF="${IPCHANGER_REF:-main}"
-ARCHIVE_URL="${IPCHANGER_ARCHIVE_URL:-https://github.com/$REPO/archive/refs/heads/$REF.tar.gz}"
+ARCHIVE_URL="${IPCHANGER_ARCHIVE_URL:-https://codeload.github.com/$REPO/tar.gz/$REF}"
 
 log() { printf '[*] %s\n' "$*"; }
 die() { printf '[x] %s\n' "$*" >&2; exit 1; }
