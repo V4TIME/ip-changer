@@ -36,6 +36,7 @@ from .state import (
     pretty_record,
     read_log_records,
     running_pid,
+    tail_log_records,
 )
 from .torhttp import ExitIP
 
@@ -59,6 +60,8 @@ def render_text_dashboard(
         if state.last_is_tor is False
         else "unknown"
     )
+    recent = tail_log_records(1)
+    last_event = pretty_record(recent[-1]) if recent else "no events yet"
     lines = [
         f"IP Changer {VERSION}",
         "=" * 58,
@@ -70,7 +73,9 @@ def render_text_dashboard(
         f"Next change   : {next_text}",
         f"Interval      : {format_duration(config.interval)} ({config.interval}s)",
         f"Jitter        : {config.jitter}%",
+        f"Options       : verify {'on' if config.verify else 'off'}, logs {'on' if config.log_enabled else 'off'}",
         f"Rotations     : {state.total_rotations} ok / {state.total_failures} failed",
+        f"Last event    : {last_event}",
         f"Last error    : {state.last_error or '-'}",
         f"Config        : {config_file or config_path()}",
         "=" * 58,
@@ -105,14 +110,20 @@ class _Dashboard:
         self.message = text
         self.message_until = time.monotonic() + seconds
 
+    def apply_config(self, new_config: Config, path: Path | None = None) -> Path:
+        saved = save_config(new_config, path or self.config_file)
+        self.config = new_config
+        self.rotator.config = new_config
+        self.rotator.log.config = new_config
+        self._config_mtime = self._mtime(saved)
+        return saved
+
     def reload_if_changed(self) -> None:
         path = self.config_file or config_path()
         mtime = self._mtime(path)
         if mtime is not None and mtime != self._config_mtime:
             try:
-                self.config = load_config(path)
-                self.rotator.config = self.config
-                self._config_mtime = mtime
+                self.apply_config(load_config(path), path)
                 self.set_message("Configuration reloaded from disk.")
             except ConfigError as exc:
                 self.set_message(f"Config reload failed: {exc}", 10)
@@ -306,6 +317,8 @@ def _draw(stdscr: Any, dash: _Dashboard, colors: dict[str, int]) -> None:
         _safe_addstr(stdscr, y, width - 1, "|")
     _safe_addstr(stdscr, height - 1, 0, "+" + "-" * max(0, width - 2) + "+")
 
+    recent = tail_log_records(1)
+    last_event = pretty_record(recent[-1]) if recent else "no events yet"
     rows: list[tuple[str, str, int]] = [
         ("Service", f"RUNNING  pid {pid}" if running else "STOPPED", colors.get("ok" if running else "dim", 0)),
         ("Tor exit IP", state.last_ip or "not checked", colors.get("value", 0)),
@@ -328,15 +341,21 @@ def _draw(stdscr: Any, dash: _Dashboard, colors: dict[str, int]) -> None:
             colors.get("value", 0),
         ),
         (
+            "Options",
+            f"verify {'on' if dash.config.verify else 'off'}   logs {'on' if dash.config.log_enabled else 'off'}",
+            colors.get("value", 0),
+        ),
+        (
             "Rotations",
             f"{state.total_rotations} ok  /  {state.total_failures} failed",
             colors.get("value", 0),
         ),
+        ("Last event", last_event, colors.get("dim", 0)),
     ]
 
     y = 2
     for label, value, attr in rows:
-        if y >= height - 7:
+        if y >= height - 6:
             break
         _safe_addstr(stdscr, y, 2, f"{label:<14}", colors.get("dim", 0))
         _safe_addstr(stdscr, y, 17, value, attr)
@@ -349,9 +368,11 @@ def _draw(stdscr: Any, dash: _Dashboard, colors: dict[str, int]) -> None:
             _safe_addstr(stdscr, y + index, 17, line, colors.get("warn", 0))
         y += len(wrapped)
 
-    _safe_addstr(stdscr, height - 4, 0, "+" + "-" * max(0, width - 2) + "+")
-    keys = "[s] start/stop  [r] rotate now  [v] verify  [i] interval  [j] jitter  [l] logs  [d] doctor  [c] config  [q] quit"
-    _safe_addstr(stdscr, height - 3, 2, keys, colors.get("dim", 0))
+    _safe_addstr(stdscr, height - 5, 0, "+" + "-" * max(0, width - 2) + "+")
+    keys_one = "[s] start/stop  [r] rotate now  [v] check IP  [i] interval  [j] jitter"
+    keys_two = "[g] logging  [t] verification  [l] logs  [d] doctor  [c] config  [?] help  [q] quit"
+    _safe_addstr(stdscr, height - 4, 2, keys_one, colors.get("dim", 0))
+    _safe_addstr(stdscr, height - 3, 2, keys_two, colors.get("dim", 0))
     message = dash.message if time.monotonic() <= dash.message_until else "Ready."
     _safe_addstr(stdscr, height - 2, 2, message, colors.get("value", 0))
     stdscr.refresh()
@@ -401,11 +422,8 @@ def _panel_main(stdscr: Any, config: Config, config_file: Path | None) -> None:
             try:
                 seconds = parse_duration(raw)
                 new_config = Config.from_dict({**dash.config.to_dict(), "interval": seconds})
-                path = save_config(new_config, config_file)
                 was_running = bool(running_pid())
-                dash.config = new_config
-                dash.rotator.config = new_config
-                dash._config_mtime = dash._mtime(path)
+                dash.apply_config(new_config, config_file)
                 if was_running:
                     daemon.restart(
                         new_config,
@@ -425,11 +443,8 @@ def _panel_main(stdscr: Any, config: Config, config_file: Path | None) -> None:
                 if not 0 <= jitter <= 100:
                     raise ValueError("jitter must be 0-100")
                 new_config = Config.from_dict({**dash.config.to_dict(), "jitter": jitter})
-                path = save_config(new_config, config_file)
                 was_running = bool(running_pid())
-                dash.config = new_config
-                dash.rotator.config = new_config
-                dash._config_mtime = dash._mtime(path)
+                dash.apply_config(new_config, config_file)
                 if was_running:
                     daemon.restart(
                         new_config,
@@ -440,6 +455,40 @@ def _panel_main(stdscr: Any, config: Config, config_file: Path | None) -> None:
                 dash.set_message(f"Jitter set to {jitter}%.")
             except (ValueError, ConfigError, daemon.DaemonError) as exc:
                 dash.set_message(f"Invalid jitter: {exc}", 10)
+        elif key in (ord("g"), ord("G")):
+            new_value = not dash.config.log_enabled
+            new_config = Config.from_dict({**dash.config.to_dict(), "log_enabled": new_value})
+            was_running = bool(running_pid())
+            dash.apply_config(new_config, config_file)
+            if was_running:
+                try:
+                    daemon.restart(
+                        new_config,
+                        interval=new_config.interval,
+                        jitter=new_config.jitter,
+                        config_file=dash.config_file,
+                    )
+                except daemon.DaemonError as exc:
+                    dash.set_message(f"Logging changed, but restart failed: {exc}", 12)
+                    continue
+            dash.set_message(f"Rotation logging {'enabled' if new_value else 'disabled'}.")
+        elif key in (ord("t"), ord("T")):
+            new_value = not dash.config.verify
+            new_config = Config.from_dict({**dash.config.to_dict(), "verify": new_value})
+            was_running = bool(running_pid())
+            dash.apply_config(new_config, config_file)
+            if was_running:
+                try:
+                    daemon.restart(
+                        new_config,
+                        interval=new_config.interval,
+                        jitter=new_config.jitter,
+                        config_file=dash.config_file,
+                    )
+                except daemon.DaemonError as exc:
+                    dash.set_message(f"Verification changed, but restart failed: {exc}", 12)
+                    continue
+            dash.set_message(f"Exit-IP verification {'enabled' if new_value else 'disabled'}.")
         elif key in (ord("l"), ord("L")):
             records = read_log_records(limit=1000)
             lines = [pretty_record(record) for record in records] or ["No rotation log entries yet."]
@@ -469,6 +518,8 @@ def _panel_main(stdscr: Any, config: Config, config_file: Path | None) -> None:
                 "v  Fetch and display the current Tor exit IP",
                 "i  Change the rotation interval (accepts 90, 5m, 1h30m)",
                 "j  Change the jitter percentage (0-100)",
+                "g  Turn rotation logging on or off",
+                "t  Turn exit-IP verification on or off",
                 "l  Browse the JSONL rotation log",
                 "d  Run environment diagnostics",
                 "c  Show the active configuration",

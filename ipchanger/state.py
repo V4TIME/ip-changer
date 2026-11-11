@@ -180,13 +180,15 @@ class LogWriter:
             pass
 
     def append(self, event: str, **values: Any) -> dict[str, Any]:
-        ensure_private_dir(self.path.parent)
-        self._rotate()
         record: dict[str, Any] = {
             "ts": now_iso(),
             "event": event,
             **values,
         }
+        if not self.config.log_enabled:
+            return record
+        ensure_private_dir(self.path.parent)
+        self._rotate()
         line = json.dumps(record, ensure_ascii=False) + "\n"
         with open(self.path, "a", encoding="utf-8") as handle:
             handle.write(line)
@@ -219,6 +221,35 @@ def read_log_records(path: Path | None = None, limit: int | None = None) -> list
     if limit is not None:
         records = records[-limit:]
     return records
+
+
+def tail_log_records(limit: int = 5, path: Path | None = None) -> list[dict[str, Any]]:
+    """Read only the last few JSONL records (cheap enough for the panel)."""
+
+    target = path or log_path()
+    if limit <= 0 or not target.exists():
+        return []
+    try:
+        with open(target, "rb") as handle:
+            handle.seek(0, os.SEEK_END)
+            end = handle.tell()
+            block = min(end, 16_384)
+            handle.seek(end - block)
+            text = handle.read().decode("utf-8", errors="replace")
+    except OSError:
+        return []
+    lines = [line for line in text.splitlines() if line.strip()]
+    if block < end and lines:
+        lines = lines[1:]  # the first line may be a partial record
+    records: list[dict[str, Any]] = []
+    for line in lines:
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            records.append(value)
+    return records[-limit:]
 
 
 def write_pid(path: Path, pid: int) -> None:

@@ -428,7 +428,9 @@ $(printf '%s' "$DISPLAY_NAME") is installed.
   Status        : ipchanger status
   Rotate now    : ipchanger rotate
   Logs          : ipchanger logs --follow
+  Logging off   : ipchanger logs --off
   Change time   : ipchanger config set interval 5m
+  Tutorial      : $INSTALL_DIR/docs/TUTORIAL.md
   Service       : $([ "$IS_TERMUX" -eq 1 ] && echo "sv status ipchanger (if termux-services is installed)" || echo "systemctl status ipchanger.service")
 
 Your applications must use the Tor SOCKS proxy (127.0.0.1:$SOCKS_PORT)

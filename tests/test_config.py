@@ -67,6 +67,8 @@ class ConfigTests(unittest.TestCase):
         config = Config().validate()
         config = set_config_value(config, "verify", "false")
         self.assertFalse(config.verify)
+        config = set_config_value(config, "log_enabled", "off")
+        self.assertFalse(config.log_enabled)
         config = set_config_value(config, "check_urls", "https://example.com/ip,https://example.org/ip")
         self.assertEqual(len(config.check_urls), 2)
 

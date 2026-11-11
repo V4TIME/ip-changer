@@ -61,6 +61,23 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertIn("No log entries", out)
 
+    def test_logging_can_be_disabled_and_enabled(self) -> None:
+        code, out, err = self.run_cli("logs", "--off")
+        self.assertEqual(code, 0, err)
+        self.assertIn("disabled", out)
+        code, out, err = self.run_cli("config", "get", "log_enabled")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(out.strip(), "false")
+        code, out, err = self.run_cli("logs")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Logging is disabled", out)
+        code, out, err = self.run_cli("logs", "--status")
+        self.assertEqual(code, 0, err)
+        self.assertIn("Logging disabled", out)
+        code, out, err = self.run_cli("logs", "--on")
+        self.assertEqual(code, 0, err)
+        self.assertIn("enabled", out)
+
     def test_panel_falls_back_to_text(self) -> None:
         code, out, err = self.run_cli("panel")
         self.assertEqual(code, 0, err)

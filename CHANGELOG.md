@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.1.0 - 2026-11-11
+
+- Added a logging switch: `ipchanger logs --on/--off/--status` and panel key `g`.
+  Existing logs are preserved; disabling only stops new writes.
+- Added panel key `t` to toggle exit-IP verification, and an `Options` row that
+  shows both settings at a glance.
+- The panel now shows the latest rotation event and displays the interval in
+  seconds alongside the human-readable value.
+- Added a complete step-by-step tutorial in `docs/TUTORIAL.md`.
+- 45 unit tests, including disabled logging and log tailing.
+
 ## 1.0.1 - 2026-11-11
 
 - Added `get.sh`, a one-command bootstrap that downloads the repository and runs

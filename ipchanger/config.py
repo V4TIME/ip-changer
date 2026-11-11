@@ -16,7 +16,7 @@ from typing import Any, Iterable
 
 APP_NAME = "ipchanger"
 DISPLAY_NAME = "IP Changer"
-VERSION = "1.0.1"
+VERSION = "1.1.0"
 
 MIN_NEWNYM_INTERVAL = 10  # Tor accepts SIGNAL NEWNYM at most once per 10 s.
 DEFAULT_CHECK_URLS = [
@@ -132,6 +132,7 @@ class Config:
     check_urls: list[str] = field(default_factory=lambda: list(DEFAULT_CHECK_URLS))
     jitter: int = 0
     min_interval: int = MIN_NEWNYM_INTERVAL
+    log_enabled: bool = True
     log_max_bytes: int = 1_048_576
     log_backups: int = 3
     user_agent: str = f"ip-changer/{VERSION} (+https://github.com/)"
@@ -182,6 +183,8 @@ class Config:
         for url in self.check_urls:
             if not isinstance(url, str) or not re.match(r"^https?://", url):
                 raise ConfigError(f"invalid check URL: {url!r}")
+        if not isinstance(self.log_enabled, bool):
+            raise ConfigError("log_enabled must be true or false")
         if self.log_max_bytes < 0:
             raise ConfigError("log_max_bytes must be >= 0")
         if self.log_backups < 0:

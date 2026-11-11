@@ -10,7 +10,7 @@ from typing import Any
 from ipchanger.config import Config, ConfigError
 from ipchanger.rotator import Rotator, RotationResult
 from ipchanger.scheduler import Scheduler
-from ipchanger.state import LogWriter, State, StateStore, read_log_records
+from ipchanger.state import LogWriter, State, StateStore, read_log_records, tail_log_records
 from ipchanger.torhttp import ExitIP
 
 
@@ -148,6 +148,25 @@ class FakeRotator:
             error=None if self.ok else "failed",
             duration_ms=1,
         )
+
+
+class LogWriterTests(unittest.TestCase):
+    def test_disabled_logging_writes_nothing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ipchanger.log"
+            writer = LogWriter(Config(log_enabled=False).validate(), path)
+            record = writer.append("rotation", ok=True)
+            self.assertEqual(record["event"], "rotation")
+            self.assertFalse(path.exists())
+
+    def test_tail_reads_recent_records(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "ipchanger.log"
+            writer = LogWriter(Config().validate(), path)
+            for index in range(5):
+                writer.append("rotation", ok=True, index=index)
+            recent = tail_log_records(2, path)
+            self.assertEqual([item["index"] for item in recent], [3, 4])
 
 
 class SchedulerTests(unittest.TestCase):

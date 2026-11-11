@@ -119,7 +119,8 @@ def cmd_run(args: argparse.Namespace) -> int:
     log_writer.append("daemon_start", pid=os.getpid(), interval=config.interval, jitter=config.jitter)
 
     def log(message: str) -> None:
-        print(f"[{now_iso()}] {message}", flush=True)
+        if config.log_enabled:
+            print(f"[{now_iso()}] {message}", flush=True)
 
     rotator = Rotator(config, state_store=state_store, log_writer=log_writer)
     scheduler = Scheduler(
@@ -225,6 +226,7 @@ def cmd_status(args: argparse.Namespace) -> int:
     print(f"Next change   : {next_text}")
     print(f"Interval      : {format_duration(config.interval)} ({config.interval}s), jitter {config.jitter}%")
     print(f"Rotations     : {state.total_rotations} ok / {state.total_failures} failed")
+    print(f"Logging       : {'enabled' if config.log_enabled else 'disabled'}")
     print(f"Last error    : {state.last_error or '-'}")
     print(f"Config        : {payload['config_file']}")
     print(f"State         : {payload['state_file']}")
@@ -340,11 +342,29 @@ def _print_log_record(record: dict[str, Any], as_json: bool) -> None:
 
 
 def cmd_logs(args: argparse.Namespace) -> int:
+    config_file = Path(args.config).expanduser() if args.config else None
+    config = load_config(config_file)
+    target = config_file or config_path()
+    if args.on or args.off or args.status:
+        if args.on or args.off:
+            config.log_enabled = bool(args.on)
+            save_config(config, target)
+        state = "enabled" if config.log_enabled else "disabled"
+        print(f"Logging {state}.")
+        print(f"Log file: {log_path()}")
+        if (args.on or args.off) and running_pid():
+            print("Note: restart the daemon to apply this change: ipchanger restart")
+        return 0
+
     path = log_path()
     records = read_log_records(path, limit=args.lines)
     if not args.follow:
         if not records:
-            print(f"No log entries yet (log: {path})")
+            if not config.log_enabled:
+                print(f"Logging is disabled; no entries will be written (log: {path}).")
+                print("Enable it with: ipchanger logs --on")
+            else:
+                print(f"No log entries yet (log: {path})")
             return 0
         for record in records:
             _print_log_record(record, args.json)
@@ -464,10 +484,14 @@ Traffic must be sent through Tor's SOCKS port, normally 127.0.0.1:9050.
     config.add_argument("--json", action="store_true", help="machine-readable output")
     config.set_defaults(func=cmd_config)
 
-    logs = subparsers.add_parser("logs", help="show or follow the rotation log")
+    logs = subparsers.add_parser("logs", help="show, follow, enable or disable the rotation log")
     logs.add_argument("--lines", type=int, default=50, help="number of entries (default 50)")
     logs.add_argument("--follow", "-f", action="store_true", help="follow new entries")
     logs.add_argument("--json", action="store_true", help="print raw JSONL")
+    toggle = logs.add_mutually_exclusive_group()
+    toggle.add_argument("--on", action="store_true", help="enable rotation logging")
+    toggle.add_argument("--off", action="store_true", help="disable rotation logging")
+    toggle.add_argument("--status", action="store_true", help="show whether logging is enabled")
     logs.set_defaults(func=cmd_logs)
 
     doctor = subparsers.add_parser("doctor", help="diagnose Tor, authentication and networking")

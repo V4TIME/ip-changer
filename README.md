@@ -12,6 +12,9 @@ This repository is a from-scratch alternative to
 that project first; its bugs, missing features and lack of a control panel are
 documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 
+**New here? Read the [step-by-step tutorial](docs/TUTORIAL.md)** — install,
+panel keys, interval/logging settings, Termux and troubleshooting.
+
 > **Important:** this rotates the **Tor exit IP**. It does not change your
 > ISP-assigned address. An application only benefits if it sends its traffic
 > through Tor's SOCKS port (normally `127.0.0.1:9050`), or if you use a
@@ -20,8 +23,9 @@ documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 
 ## Features
 
-- **Control panel** — live exit IP, previous IP, countdown, rotation counters,
-  start/stop, rotate now, interval/jitter editor, log viewer and diagnostics.
+- **Control panel** — live exit IP, previous IP, countdown in seconds, latest
+  log event, start/stop, rotate now, interval/jitter editor, logging and
+  verification toggles, log viewer and diagnostics.
 - **Real scheduler** — one long-running daemon with interval, optional jitter,
   graceful SIGTERM, and a `next_rotation` timestamp (not a systemd restart
   trick).
@@ -36,32 +40,35 @@ documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 - **Termux ready** — no systemd required; uses `termux-services` when available
   and otherwise gives a boot-script/manual path.
 - **Structured state and logs** — atomic JSON state, rotated JSONL logs, file
-  lock to prevent concurrent rotations.
+  lock to prevent concurrent rotations. Logging can be switched off from the
+  panel (`g`) or with `ipchanger logs --off`.
 - **Diagnostics** — `ipchanger doctor` checks Python, Tor, control auth, cookie
   permissions, SOCKS, daemon state and the live exit IP.
-- **Tested** — 42 unit tests for the control protocol, SOCKS5/HTTP client,
-  config, rotator, scheduler and CLI; CI workflow included.
+- **Tested** — 45 unit tests for the control protocol, SOCKS5/HTTP client,
+  config, logging, rotator, scheduler and CLI; CI workflow included.
 - **Clean uninstall** — removes the service, files, wrapper and managed torrc
   block; `--purge` also removes config/history.
 
 ## Control panel preview
 
 ```text
-+ IP Changer 1.0.1 -------------------------------------------------+
++ IP Changer 1.1.0 -------------------------------------------------+
 |                                                                  |
 | Service       RUNNING  pid 42117                                 |
 | Tor exit IP   185.220.101.42                                     |
 | Tor check     verified                                           |
 | Previous IP   51.15.43.8                                         |
-| Last change   2026-11-10 12:34:56  (12s ago)                     |
+| Last change   2026-11-11 12:34:56  (12s ago)                     |
 | Next change   in 1m 48s                                          |
 | Interval      2m  (120s, jitter 0%)                              |
+| Options       verify on   logs on                                |
 | Rotations     42 ok  /  0 failed                                 |
+| Last event    2026-11-11T12:34:56  rotation  51.15.43.8 -> ...   |
 |                                                                  |
 +------------------------------------------------------------------+
-| [s] start/stop  [r] rotate now  [v] verify  [i] interval        |
-| [j] jitter  [l] logs  [d] doctor  [c] config  [q] quit           |
-| Ready.                                                           |
+| [s] start/stop  [r] rotate now  [v] check IP  [i] interval       |
+| [g] logging  [t] verification  [l] logs  [d] doctor  [c] config  |
+| Ready. Press ? for help.                                         |
 +------------------------------------------------------------------+
 ```
 
@@ -83,7 +90,7 @@ curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bas
 `get.sh` downloads the repository tarball, verifies it contains the installer,
 and runs `install.sh` with the arguments you passed. Nothing is left behind in
 the current directory. Pin a release by passing the variable to `bash`:
-`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.0.1 bash -s -- --interval 5m`,
+`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.1.0 bash -s -- --interval 5m`,
 or read the script first with `curl -fsSL .../get.sh | less`.
 
 ### From a clone
@@ -206,6 +213,8 @@ ipchanger rotate              # NEWNYM once, wait, verify, log
 ipchanger rotate --no-verify  # just signal NEWNYM
 ipchanger ip                  # current Tor exit IP
 ipchanger logs --follow       # follow structured rotation events
+ipchanger logs --off          # stop writing new log entries
+ipchanger logs --on           # enable logging again
 ipchanger stop                # stop the background daemon
 ```
 
@@ -216,6 +225,7 @@ ipchanger config list
 ipchanger config get interval
 ipchanger config set interval 5m
 ipchanger config set jitter 20             # add 0-20% random delay
+ipchanger config set log_enabled false     # same as: ipchanger logs --off
 ipchanger config set require_tor true      # fail if IsTor cannot be confirmed
 ipchanger config set check_urls '["https://check.torproject.org/api/ip"]'
 ipchanger config reset
@@ -242,6 +252,7 @@ daemon for you.
 | `ipchanger ip [--json]` | Fetch the current exit IP through Tor. |
 | `ipchanger config list/get/set/reset` | Inspect or edit JSON configuration. |
 | `ipchanger logs [--lines N] [--follow] [--json]` | Read or follow the JSONL log. |
+| `ipchanger logs --on` / `--off` / `--status` | Enable, disable or inspect rotation logging. |
 | `ipchanger doctor [--quick]` | Diagnose the environment. |
 | `ipchanger --config PATH ...` | Use a custom config file. |
 
@@ -254,6 +265,8 @@ daemon for you.
 | `v` | Fetch the current exit IP. |
 | `i` | Change interval (`90`, `5m`, `1h30m`; minimum 10s). |
 | `j` | Change jitter (0-100%). |
+| `g` | Turn rotation logging on/off. |
+| `t` | Turn exit-IP verification on/off. |
 | `l` | Browse the rotation log. |
 | `d` | Run diagnostics. |
 | `c` | Show the active configuration. |
@@ -331,7 +344,7 @@ limitation explicit and verifies the exit through Tor.
 | Root service executing user script | Yes | No; runs as user |
 | torrc safety | Append only | Backup + managed block + verify |
 | Diagnostics | No | `ipchanger doctor` |
-| Tests/CI | No | 42 tests + GitHub Actions |
+| Tests/CI | No | 45 tests + GitHub Actions |
 | Uninstall | Partial | Service/files/torrc + `--purge` |
 
 ## Termux notes
@@ -356,6 +369,7 @@ limitation explicit and verifies the exit through Tor.
 | Exit IP does not change | Tor may reuse an exit; wait for the next interval. Some networks force a single exit. Check the warning in `ipchanger logs`. |
 | Websites block the IP | Many sites block Tor exits. Try another rotation or accept that Tor is not suitable for that site. |
 | Interval change did nothing | `ipchanger restart` after `config set`; the panel restarts automatically. |
+| No new log entries | Logging may be off: `ipchanger logs --status`, then `ipchanger logs --on`. |
 | Service keeps restarting | `systemctl status ipchanger.service` and `journalctl -u ipchanger.service -n 100`; then `ipchanger doctor`. |
 | `PYTHONPATH`/module not found | Use the installed wrapper `ipchanger`, or run `python3 -m ipchanger` from the repository root. |
 
@@ -372,6 +386,14 @@ bash -n install.sh uninstall.sh
 The tests do not need Tor or network access: they use a fake control server, a
 fake SOCKS5 proxy and a local HTTP server. The CI workflow runs them on Python
 3.10, 3.11 and 3.13.
+
+## Documentation
+
+- [`docs/TUTORIAL.md`](docs/TUTORIAL.md) — install, panel tour, interval,
+  logging on/off, Termux and troubleshooting.
+- [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module map and data flow.
+- [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
+  of the original project.
 
 ## Uninstall
 

@@ -17,6 +17,7 @@ from .config import (
     config_path,
     ensure_private_dir,
     is_termux,
+    log_path,
     state_dir,
 )
 from .control import TorControlError, TorController
@@ -98,6 +99,15 @@ def run_checks(
         )
     )
     checks.append(Check("INFO", "Config file", str(config_file or config_path())))
+    checks.append(
+        Check(
+            "INFO",
+            "Rotation logging",
+            f"enabled ({log_path()})"
+            if config.log_enabled
+            else "disabled (enable with: ipchanger logs --on)",
+        )
+    )
     checks.append(
         Check(
             "OK",
