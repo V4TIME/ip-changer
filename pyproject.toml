@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ip-changer"
-version = "1.1.0"
+version = "1.1.1"
 description = "Rotate the Tor exit IP from a terminal or Termux control panel"
 readme = "README.md"
 requires-python = ">=3.10"

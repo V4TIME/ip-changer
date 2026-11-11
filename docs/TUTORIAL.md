@@ -84,7 +84,7 @@ front-end. Full instructions, including Android and `torsocks`:
 ## 3. The control panel
 
 ```text
-+ IP Changer 1.1.0 -------------------------------------------------+
++ IP Changer 1.1.1 -------------------------------------------------+
 | Service       RUNNING  pid 42117                                 |
 | Tor exit IP   185.220.101.42                                     |
 | Tor check     verified                                           |

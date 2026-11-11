@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.1.1 - 2026-11-11
 
 - Rewrote the README with a one-command quick start, platform table, a
   “Why choose IP Changer?” comparison, and a Chrome/Firefox setup section.
