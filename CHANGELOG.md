@@ -1,9 +1,10 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 - 2026-11-11
 
 - Added `get.sh`, a one-command bootstrap that downloads the repository and runs
-  the installer with any `install.sh` arguments.
+  the installer with any `install.sh` arguments. It accepts branches, tags and
+  commit hashes via `IPCHANGER_REF`.
 - Documented the full installation sequence and compared it step by step with
   the upstream `techchipnet/ip-changer` installer.
 

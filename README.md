@@ -47,7 +47,7 @@ documented in [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md).
 ## Control panel preview
 
 ```text
-+ IP Changer 1.0.0 -------------------------------------------------+
++ IP Changer 1.0.1 -------------------------------------------------+
 |                                                                  |
 | Service       RUNNING  pid 42117                                 |
 | Tor exit IP   185.220.101.42                                     |
@@ -83,7 +83,7 @@ curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bas
 `get.sh` downloads the repository tarball, verifies it contains the installer,
 and runs `install.sh` with the arguments you passed. Nothing is left behind in
 the current directory. Pin a release by passing the variable to `bash`:
-`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.0.0 bash -s -- --interval 5m`,
+`curl -fsSL .../get.sh | sudo IPCHANGER_REF=v1.0.1 bash -s -- --interval 5m`,
 or read the script first with `curl -fsSL .../get.sh | less`.
 
 ### From a clone
