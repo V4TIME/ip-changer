@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
-"""Safely add IP Changer's control-port settings to a torrc file.
+"""Add or remove IP Changer's managed control-port block in a torrc file.
 
-The installer runs this helper because editing torrc with grep/sed is where
-many similar tools break: they append duplicate directives, miss an existing
-ControlPort on another port, or leave Tor unable to start.
-
-Output is intentionally machine-readable, one ``KEY=value`` per line, so the
-shell installer can read the detected ports.
+Output is machine-readable, one ``KEY=value`` per line.
 """
 
 from __future__ import annotations
@@ -23,6 +18,12 @@ BEGIN = "# BEGIN ip-changer managed block"
 END = "# END ip-changer managed block"
 CONTROL_RE = re.compile(r"^\s*ControlPort\s+([^\s#]+)", re.I)
 SOCKS_RE = re.compile(r"^\s*SocksPort\s+([^\s#]+)", re.I)
+BOOL_RE = {
+    "CookieAuthentication": re.compile(r"^\s*CookieAuthentication\s+([^\s#]+)", re.I),
+    "CookieAuthFileGroupReadable": re.compile(
+        r"^\s*CookieAuthFileGroupReadable\s+([^\s#]+)", re.I
+    ),
+}
 
 
 def uncommented_value(lines: list[str], pattern: re.Pattern[str]) -> str | None:
@@ -51,19 +52,44 @@ def remove_managed_block(lines: list[str]) -> list[str]:
     return result
 
 
-def parse_port(value: str | None, default: int) -> int:
-    if not value:
-        return default
-    if value.startswith("unix:"):
-        return default
-    if value == "0":
-        return default
-    if ":" in value:
-        value = value.rsplit(":", 1)[1]
+def boolean_addition(lines: list[str], name: str) -> str | None:
+    """Return a directive when *name* is absent or not already enabled."""
+
+    value = uncommented_value(lines, BOOL_RE[name])
+    if value is None:
+        return f"{name} 1"
+    if value.strip().lower() in {"1", "yes", "true", "on"}:
+        return None
+    return f"{name} 1"
+
+
+def backup_path(path: Path) -> Path:
+    stamp = time.strftime("%Y%m%d%H%M%S")
+    candidate = path.with_name(f"{path.name}.ipchanger.bak.{stamp}")
+    counter = 1
+    while candidate.exists():
+        candidate = path.with_name(f"{path.name}.ipchanger.bak.{stamp}.{counter}")
+        counter += 1
+    return candidate
+
+
+def tcp_port(value: str | None) -> int | None:
+    if not value or value == "0" or value.startswith("unix:"):
+        return None
+    candidate = value.rsplit(":", 1)[1] if ":" in value else value
     try:
-        return int(value)
+        port = int(candidate)
     except ValueError:
-        return default
+        return None
+    return port if 1 <= port <= 65535 else None
+
+
+def is_tcp_endpoint(value: str | None) -> bool:
+    return tcp_port(value) is not None
+
+
+def parse_port(value: str | None, default: int) -> int:
+    return tcp_port(value) or default
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -99,7 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"CHANGED={1 if changed else 0}")
         if args.dry_run or not changed:
             return 0
-        backup = path.with_name(f"{path.name}.ipchanger.bak.{time.strftime('%Y%m%d%H%M%S')}")
+        backup = backup_path(path)
         try:
             shutil.copy2(path, backup)
             path.write_text(candidate, encoding="utf-8")
@@ -111,20 +137,15 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     additions: list[str] = []
-    if control_value is None:
+    if not is_tcp_endpoint(control_value):
         additions.append(f"ControlPort {control_port}")
-    elif control_value == "0":
-        additions.append(f"ControlPort {control_port}")
-    if socks_value == "0":
+    if socks_value is not None and not is_tcp_endpoint(socks_value):
         additions.append(f"SocksPort {socks_port}")
-    additions.extend(
-        [
-            "CookieAuthentication 1",
-            "CookieAuthFileGroupReadable 1",
-        ]
-    )
+    for name in ("CookieAuthentication", "CookieAuthFileGroupReadable"):
+        directive = boolean_addition(lines, name)
+        if directive:
+            additions.append(directive)
 
-    # Avoid appending a block that is byte-for-byte what is already there.
     prefix = list(lines)
     if prefix and prefix[-1].strip() != "":
         prefix.append("")
@@ -143,7 +164,7 @@ def main(argv: list[str] | None = None) -> int:
     if not changed:
         return 0
 
-    backup = path.with_name(f"{path.name}.ipchanger.bak.{time.strftime('%Y%m%d%H%M%S')}")
+    backup = backup_path(path)
     try:
         shutil.copy2(path, backup)
         path.write_text(candidate, encoding="utf-8")
@@ -154,20 +175,27 @@ def main(argv: list[str] | None = None) -> int:
 
     tor = shutil.which("tor")
     if tor:
-        result = subprocess.run(
-            [tor, "--verify-config", "-f", str(path)],
-            capture_output=True,
-            text=True,
-            timeout=20,
-            check=False,
-        )
-        if result.returncode != 0:
+        try:
+            result = subprocess.run(
+                [tor, "--verify-config", "-f", str(path)],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError) as exc:
+            result = None
+            print(f"ERROR=could not validate torrc: {exc}", file=sys.stderr)
+        if result is None or result.returncode != 0:
             try:
                 shutil.copy2(backup, path)
             except OSError:
                 pass
-            print("ERROR=tor rejected the new torrc; original restored", file=sys.stderr)
-            print((result.stderr or result.stdout).strip(), file=sys.stderr)
+            if result is not None:
+                print("ERROR=tor rejected the new torrc; original restored", file=sys.stderr)
+                print((result.stderr or result.stdout).strip(), file=sys.stderr)
+            else:
+                print("ERROR=original torrc restored", file=sys.stderr)
             return 1
     print("OK=1")
     return 0

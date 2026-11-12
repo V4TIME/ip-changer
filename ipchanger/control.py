@@ -1,6 +1,6 @@
-"""A tiny, dependency-free implementation of the Tor control protocol.
+"""Implementation of the Tor control protocol.
 
-Only the commands IP Changer needs are implemented:
+The commands IP Changer uses are:
 
 * ``PROTOCOLINFO 1`` -- discover authentication methods and the cookie file
 * ``AUTHENTICATE ...`` -- cookie, password or null authentication
@@ -161,7 +161,7 @@ class TorController:
                 continue
             code, separator, payload = line[:3], line[3:4], line[4:]
             if code.startswith("6"):
-                # Asynchronous event (650). Discard it and wait for our reply.
+                # Asynchronous event (650). Discard it and wait for the reply.
                 if separator == "-":
                     while True:
                         more = self._readline()

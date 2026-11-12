@@ -9,10 +9,16 @@ interval, control logging, and run it in Termux or as a service.
 
 ## 1. Install everything with one command
 
-### Linux and macOS
+### Linux
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | sudo bash -s -- --interval 5m
+```
+
+### macOS (no sudo)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/V4TIME/ip-changer/main/get.sh | bash -s -- --interval 5m
 ```
 
 ### Termux (no root)
@@ -27,10 +33,10 @@ The bootstrap downloads the repository and runs `install.sh`, which:
 1. installs Tor and Python 3.10+,
 2. backs up torrc and adds a managed control-port/cookie block,
 3. validates torrc with `tor --verify-config`,
-4. adds your user to the correct Tor group,
+4. adds your user to the correct Tor group on Linux,
 5. installs the program and the `ipchanger` command,
 6. starts Tor and waits for the control port,
-7. creates a systemd service (or Termux services/boot script),
+7. creates a systemd service, or Termux services/boot script,
 8. runs `ipchanger doctor`.
 
 Prefer a clone? Same result:
@@ -38,7 +44,8 @@ Prefer a clone? Same result:
 ```bash
 git clone https://github.com/V4TIME/ip-changer.git
 cd ip-changer
-sudo ./install.sh --interval 5m
+sudo ./install.sh --interval 5m     # Linux
+./install.sh --interval 5m          # macOS
 ```
 
 Useful installer flags:
@@ -238,7 +245,8 @@ Logs are JSONL (one JSON object per line), private (`0600`) and rotated by size.
 ## 10. Uninstall
 
 ```bash
-sudo ./uninstall.sh            # keep config/state
+sudo ./uninstall.sh            # system install; keep config/state
+./uninstall.sh                 # per-user install (macOS or non-root Linux)
 sudo ./uninstall.sh --purge    # also remove config, state and logs
 ```
 

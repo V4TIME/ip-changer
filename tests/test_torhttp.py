@@ -182,6 +182,8 @@ class TorHttpTests(unittest.TestCase):
         self.assertEqual(parse_exit_payload("1.2.3.4, 5.6.7.8"), ("1.2.3.4", None))
         with self.assertRaises(IPCheckError):
             parse_exit_payload("no address here")
+        with self.assertRaises(IPCheckError):
+            parse_exit_payload("999.999.999.999")
 
     def test_get_exit_ip(self) -> None:
         config = Config(

@@ -98,7 +98,7 @@ class StateStore:
 
 
 class FileLock:
-    """Best-effort exclusive lock so a manual rotation cannot race the daemon."""
+    """Exclusive lock that prevents a manual rotation from racing the daemon."""
 
     def __init__(self, path: Path, timeout: float = 5.0) -> None:
         self.path = path
@@ -219,7 +219,7 @@ def read_log_records(path: Path | None = None, limit: int | None = None) -> list
         if isinstance(value, dict):
             records.append(value)
     if limit is not None:
-        records = records[-limit:]
+        records = records[-limit:] if limit > 0 else []
     return records
 
 

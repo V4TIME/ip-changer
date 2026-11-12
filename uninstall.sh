@@ -73,6 +73,7 @@ fi
 
 EUID_VALUE="$(id -u)"
 CURRENT_USER="$(id -un)"
+OS_NAME="$(uname -s)"
 if [ -z "$TARGET_USER" ]; then
     if [ "$EUID_VALUE" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
         TARGET_USER="$SUDO_USER"
@@ -103,8 +104,26 @@ else
     fi
     INSTALL_DIR="/opt/ip-changer"
     BIN_DIR="/usr/local/bin"
-    TORRC="/etc/tor/torrc"
+    if [ "$OS_NAME" = "Darwin" ]; then
+        BREW_PREFIX=""
+        if command -v brew >/dev/null 2>&1; then
+            BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+        fi
+        if [ -n "$BREW_PREFIX" ]; then
+            TORRC="$BREW_PREFIX/etc/tor/torrc"
+        elif [ -d /opt/homebrew/etc/tor ]; then
+            TORRC="/opt/homebrew/etc/tor/torrc"
+        else
+            TORRC="/usr/local/etc/tor/torrc"
+        fi
+    else
+        TORRC="/etc/tor/torrc"
+    fi
     if [ "$EUID_VALUE" -ne 0 ]; then
+        INSTALL_DIR="$TARGET_HOME/.local/share/ip-changer"
+        BIN_DIR="$TARGET_HOME/.local/bin"
+    elif [ "$TARGET_USER" != "root" ] && [ ! -d "$INSTALL_DIR" ] \
+        && [ -d "$TARGET_HOME/.local/share/ip-changer" ]; then
         INSTALL_DIR="$TARGET_HOME/.local/share/ip-changer"
         BIN_DIR="$TARGET_HOME/.local/bin"
     fi
@@ -127,7 +146,7 @@ fi
 
 log "Removing the managed torrc block..."
 if [ -f "$TORRC" ]; then
-    if [ "$IS_TERMUX" -eq 1 ] || [ "$EUID_VALUE" -ne 0 ]; then
+    if [ "$IS_TERMUX" -eq 1 ]; then
         run python3 "$SCRIPT_DIR/scripts/configure_tor.py" "$TORRC" --remove || warn "could not update torrc"
     else
         run "${SUDO[@]}" python3 "$SCRIPT_DIR/scripts/configure_tor.py" "$TORRC" --remove || warn "could not update torrc"
@@ -140,11 +159,11 @@ run rm -rf "$INSTALL_DIR"
 
 if [ "$PURGE" -eq 1 ]; then
     log "Purging configuration, state and logs..."
-    run rm -rf "$TARGET_HOME/.config/ipchanger"
-    run rm -rf "$TARGET_HOME/.local/state/ipchanger"
+    run rm -rf "${XDG_CONFIG_HOME:-$TARGET_HOME/.config}/ipchanger"
+    run rm -rf "${XDG_STATE_HOME:-$TARGET_HOME/.local/state}/ipchanger"
 fi
 
-if [ "$IS_TERMUX" -eq 0 ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
+if [ "$IS_TERMUX" -eq 0 ] && [ "$OS_NAME" = "Linux" ] && command -v systemctl >/dev/null 2>&1 && [ -d /run/systemd/system ]; then
     run "${SUDO[@]}" systemctl try-restart tor.service || true
 fi
 

@@ -1,11 +1,7 @@
 """Minimal SOCKS5 + HTTP client, used to verify the Tor exit IP.
 
-Python's standard library does not provide SOCKS support, so this module
-implements the small part of RFC 1928 (SOCKS5) and RFC 1929 (username/password
-authentication) that Tor exposes. HTTPS is handled with :mod:`ssl`.
-
-No third-party package such as PySocks or requests is required, which keeps the
-Termux installation small and auditable.
+Implements the SOCKS5 (RFC 1928) and username/password (RFC 1929) handshake
+that Tor exposes. HTTPS uses :mod:`ssl`.
 """
 
 from __future__ import annotations
@@ -22,9 +18,9 @@ from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urljoin, urlsplit, urlunsplit
 
-from .config import Config
+from .config import Config, VERSION
 
-USER_AGENT = "ip-changer/1.0"
+USER_AGENT = f"ip-changer/{VERSION}"
 
 
 class ProxyError(RuntimeError):
@@ -294,7 +290,8 @@ def http_get(
             if parsed.scheme == "https":
                 context = ssl_context or ssl.create_default_context()
                 sock = context.wrap_socket(sock, server_hostname=host)
-            host_header = host if port in (80, 443) else f"{host}:{port}"
+            host_text = f"[{host}]" if ":" in host else host
+            host_header = host_text if port in (80, 443) else f"{host_text}:{port}"
             request = (
                 f"GET {path} HTTP/1.1\r\n"
                 f"Host: {host_header}\r\n"
@@ -333,7 +330,12 @@ def _extract_ip(value: str) -> str | None:
         except ValueError:
             pass
     match = _IPV4_RE.search(value)
-    return match.group(0) if match else None
+    if not match:
+        return None
+    try:
+        return str(ipaddress.ip_address(match.group(0)))
+    except ValueError:
+        return None
 
 
 def parse_exit_payload(text: str) -> tuple[str, bool | None]:

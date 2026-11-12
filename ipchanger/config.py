@@ -1,8 +1,4 @@
-"""Configuration, paths and small persistence helpers.
-
-The project is deliberately dependency-free: everything here uses the Python
-standard library so it works on a normal Linux box and inside Termux.
-"""
+"""Configuration, paths and small persistence helpers."""
 
 from __future__ import annotations
 
@@ -135,7 +131,7 @@ class Config:
     log_enabled: bool = True
     log_max_bytes: int = 1_048_576
     log_backups: int = 3
-    user_agent: str = f"ip-changer/{VERSION} (+https://github.com/)"
+    user_agent: str = f"ip-changer/{VERSION} (+https://github.com/V4TIME/ip-changer)"
 
     def validate(self) -> "Config":
         try:

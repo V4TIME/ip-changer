@@ -1,8 +1,7 @@
-# How this repository works
+# Architecture
 
-This page is the short guided tour: what talks to what, which files own which
-job, and what happens on a rotation. Read it once and the rest of the code
-should be easy to follow.
+How the components communicate, which module owns each task, and what happens
+during a rotation.
 
 ## High-level flow
 
@@ -53,7 +52,7 @@ should be easy to follow.
    counters, last NEWNYM time). If it is missing or corrupt, a fresh state is
    used rather than crashing.
 2. **Baseline.** If no last IP is known, the current exit is fetched first.
-   This also proves the SOCKS port works before we change anything.
+   This also proves that the SOCKS port works before anything changes.
 3. **Respect Tor's rate limit.** NEWNYM is accepted at most once every 10
    seconds. If the last signal was recent, the rotator waits the remainder.
    This is why configuration rejects intervals below 10 seconds.

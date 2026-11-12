@@ -94,8 +94,8 @@ class Rotator:
         state = self.state_store.load()
         old_ip = state.last_ip
 
-        # If we have never seen an IP, establish a baseline first. This also
-        # proves that the SOCKS port works before sending a NEWNYM signal.
+        # Establish a baseline when no IP is known. This also proves that the
+        # SOCKS port works before sending a NEWNYM signal.
         if do_verify and old_ip is None:
             try:
                 baseline = self.ip_getter(self.config)
@@ -184,7 +184,7 @@ class Rotator:
         is_tor: bool | None = None
         source: str | None = None
         last_check_error: str | None = None
-        deadline = started + max(5.0, float(self.config.change_timeout))
+        deadline = self.clock() + max(5.0, float(self.config.change_timeout))
         first = True
         while True:
             if not first:
@@ -198,6 +198,8 @@ class Rotator:
                 if old_ip is None or new_ip != old_ip or not do_wait:
                     break
             except TorVerificationError as exc:
+                new_ip = None
+                is_tor = False
                 last_check_error = str(exc)
                 break
             except (IPCheckError, OSError) as exc:
@@ -221,7 +223,7 @@ class Rotator:
                 old_ip=old_ip,
                 new_ip=None,
                 changed=False,
-                is_tor=None,
+                is_tor=is_tor,
                 duration_ms=duration,
                 error=error,
             )
@@ -230,7 +232,7 @@ class Rotator:
                 changed=False,
                 old_ip=old_ip,
                 new_ip=None,
-                is_tor=None,
+                is_tor=is_tor,
                 source=source,
                 error=error,
                 duration_ms=duration,

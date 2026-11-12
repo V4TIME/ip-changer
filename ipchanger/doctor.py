@@ -13,7 +13,6 @@ from pathlib import Path
 
 from .config import (
     Config,
-    ConfigError,
     config_path,
     ensure_private_dir,
     is_termux,
@@ -242,12 +241,3 @@ def format_checks(checks: list[Check]) -> str:
         f"{labels.get(check.status, check.status):6} {check.name:<{width}}  {check.detail}"
         for check in checks
     )
-
-
-def parse_config_safely(path: Path | None = None) -> tuple[Config | None, Check | None]:
-    from .config import load_config
-
-    try:
-        return load_config(path), None
-    except ConfigError as exc:
-        return None, Check("FAIL", "Configuration", str(exc))

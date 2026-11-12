@@ -119,8 +119,7 @@ def cmd_run(args: argparse.Namespace) -> int:
     log_writer.append("daemon_start", pid=os.getpid(), interval=config.interval, jitter=config.jitter)
 
     def log(message: str) -> None:
-        if config.log_enabled:
-            print(f"[{now_iso()}] {message}", flush=True)
+        print(f"[{now_iso()}] {message}", flush=True)
 
     rotator = Rotator(config, state_store=state_store, log_writer=log_writer)
     scheduler = Scheduler(
@@ -217,7 +216,12 @@ def cmd_status(args: argparse.Namespace) -> int:
     )
     print(f"Tor check     : {tor_text}")
     print(f"Previous IP   : {state.previous_ip or '-'}")
-    print(f"Last change   : {payload['last_success'] or 'never'} ({human_age(state.last_success)})")
+    last_change = (
+        f"{payload['last_success']} ({human_age(state.last_success)})"
+        if payload["last_success"]
+        else "never"
+    )
+    print(f"Last change   : {last_change}")
     next_text = "not scheduled"
     if payload["running"] and payload["next_in_seconds"] is not None:
         next_text = f"in {format_duration(payload['next_in_seconds'])}"
@@ -503,9 +507,10 @@ Traffic must be sent through Tor's SOCKS port, normally 127.0.0.1:9050.
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
-    args = parser.parse_args(argv)
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    args = parser.parse_args(arguments)
     if not getattr(args, "command", None):
-        args = parser.parse_args((argv or []) + ["panel"])
+        args = parser.parse_args([*arguments, "panel"])
     if args.command == "logs" and args.lines < 0:
         parser.error("--lines must be >= 0")
     try:

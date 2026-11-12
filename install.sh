@@ -101,6 +101,7 @@ fi
 
 EUID_VALUE="$(id -u)"
 CURRENT_USER="$(id -un)"
+OS_NAME="$(uname -s)"
 if [ -z "$TARGET_USER" ]; then
     if [ "$EUID_VALUE" -eq 0 ] && [ -n "${SUDO_USER:-}" ]; then
         TARGET_USER="$SUDO_USER"
@@ -123,7 +124,7 @@ else
     else
         SUDO=()
     fi
-    case "$(uname -s)" in
+    case "$OS_NAME" in
         Linux)
             INSTALL_DIR="/opt/ip-changer"
             BIN_DIR="/usr/local/bin"
@@ -132,14 +133,20 @@ else
         Darwin)
             INSTALL_DIR="/usr/local/opt/ip-changer"
             BIN_DIR="/usr/local/bin"
-            if [ -d /opt/homebrew/etc/tor ]; then
+            BREW_PREFIX=""
+            if command -v brew >/dev/null 2>&1; then
+                BREW_PREFIX="$(brew --prefix 2>/dev/null || true)"
+            fi
+            if [ -n "$BREW_PREFIX" ]; then
+                TORRC="$BREW_PREFIX/etc/tor/torrc"
+            elif [ -d /opt/homebrew/etc/tor ]; then
                 TORRC="/opt/homebrew/etc/tor/torrc"
             else
                 TORRC="/usr/local/etc/tor/torrc"
             fi
             ;;
         *)
-            die "unsupported operating system: $(uname -s)"
+            die "unsupported operating system: $OS_NAME"
             ;;
     esac
     if [ "$TARGET_USER" = "root" ]; then
@@ -188,13 +195,13 @@ install_packages() {
         run "${SUDO[@]}" apt-get update
         run "${SUDO[@]}" apt-get install -y tor python3 ca-certificates
     elif command -v pacman >/dev/null 2>&1; then
-        run "${SUDO[@]}" pacman -Sy --needed --noconfirm tor python
+        run "${SUDO[@]}" pacman -Sy --needed --noconfirm tor python ca-certificates
     elif command -v dnf >/dev/null 2>&1; then
-        run "${SUDO[@]}" dnf install -y tor python3
+        run "${SUDO[@]}" dnf install -y tor python3 ca-certificates
     elif command -v zypper >/dev/null 2>&1; then
-        run "${SUDO[@]}" zypper --non-interactive install tor python3
+        run "${SUDO[@]}" zypper --non-interactive install tor python3 ca-certificates
     elif command -v apk >/dev/null 2>&1; then
-        run "${SUDO[@]}" apk add --no-cache tor python3
+        run "${SUDO[@]}" apk add --no-cache tor python3 ca-certificates
     elif command -v brew >/dev/null 2>&1; then
         run brew install tor python3
     else
@@ -226,6 +233,10 @@ if sys.version_info < (3, 10):
     raise SystemExit(1)
 PY
 TOR_BIN="$(command -v tor || true)"
+if [ -z "$TOR_BIN" ] && [ "$OS_NAME" = "Darwin" ] && [ -n "${BREW_PREFIX:-}" ]; then
+    TOR_BIN="$BREW_PREFIX/bin/tor"
+    [ -x "$TOR_BIN" ] || TOR_BIN=""
+fi
 [ -n "$TOR_BIN" ] || die "tor was not found after package installation"
 
 if [ ! -f "$TORRC" ]; then
@@ -249,7 +260,7 @@ SOCKS_PORT="$(printf '%s\n' "$CONFIG_OUTPUT" | sed -n 's/^SOCKS_PORT=//p' | tail
 CONTROL_PORT="${CONTROL_PORT:-9051}"
 SOCKS_PORT="${SOCKS_PORT:-9050}"
 
-if [ "$IS_TERMUX" -eq 0 ]; then
+if [ "$IS_TERMUX" -eq 0 ] && [ "$OS_NAME" = "Linux" ]; then
     for group in debian-tor tor toranon _tor; do
         if getent group "$group" >/dev/null 2>&1; then
             TOR_GROUP="$group"
@@ -279,12 +290,13 @@ if [ "$IS_TERMUX" -eq 0 ] && [ "$EUID_VALUE" -eq 0 ]; then
     run "${SUDO[@]}" cp -R "$SCRIPT_DIR/scripts" "$INSTALL_DIR/"
     run "${SUDO[@]}" cp "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/LICENSE" "$SCRIPT_DIR/pyproject.toml" "$INSTALL_DIR/"
     run "${SUDO[@]}" chmod -R a+rX "$INSTALL_DIR"
-    cat > /tmp/ipchanger-wrapper.$$ <<EOF
+    WRAPPER_FILE="$(mktemp)"
+    cat > "$WRAPPER_FILE" <<EOF
 #!/bin/sh
 PYTHONPATH="$INSTALL_DIR\${PYTHONPATH:+:\$PYTHONPATH}" exec "$PYTHON_BIN" -m ipchanger "\$@"
 EOF
-    run "${SUDO[@]}" install -m 755 /tmp/ipchanger-wrapper.$$ "$BIN_DIR/ipchanger"
-    rm -f /tmp/ipchanger-wrapper.$$
+    run "${SUDO[@]}" install -m 755 "$WRAPPER_FILE" "$BIN_DIR/ipchanger"
+    rm -f "$WRAPPER_FILE"
 else
     mkdir -p "$INSTALL_DIR" "$BIN_DIR"
     rm -rf "$INSTALL_DIR/ipchanger" "$INSTALL_DIR/docs" "$INSTALL_DIR/scripts"
@@ -341,8 +353,12 @@ else
         else
             warn "could not find a Tor systemd service; start Tor manually"
         fi
+    elif [ "$OS_NAME" = "Darwin" ] && command -v brew >/dev/null 2>&1; then
+        as_target brew services start tor || warn "could not start Tor; run: brew services start tor"
+    elif command -v rc-service >/dev/null 2>&1; then
+        run "${SUDO[@]}" rc-service tor start || warn "could not start the Tor service"
     else
-        warn "systemd is not available; start Tor manually"
+        warn "no service manager found; start Tor manually with: tor -f $TORRC"
     fi
 fi
 

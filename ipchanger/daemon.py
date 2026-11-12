@@ -50,31 +50,38 @@ def start(
     ensure_private_dir(daemon_log_path().parent)
     log_path = daemon_log_path()
     fd = os.open(log_path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
-    command = [sys.executable, "-m", "ipchanger", "run"]
+    command = [sys.executable, "-m", "ipchanger"]
+    if config_file is not None:
+        command.extend(["--config", str(config_file)])
+    command.append("run")
     if interval is not None:
         command.extend(["--interval", str(interval)])
     if jitter is not None:
         command.extend(["--jitter", str(jitter)])
-    if config_file is not None:
-        command.extend(["--config", str(config_file)])
     env = os.environ.copy()
     root = str(_package_root())
     existing = env.get("PYTHONPATH", "")
     env["PYTHONPATH"] = root + (os.pathsep + existing if existing else "")
     try:
-        with os.fdopen(fd, "a", encoding="utf-8") as log_handle:
-            process = subprocess.Popen(
-                command,
-                stdin=subprocess.DEVNULL,
-                stdout=log_handle,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                close_fds=True,
-                cwd=str(Path.home()),
-                env=env,
-            )
+        log_handle = os.fdopen(fd, "a", encoding="utf-8")
+    except OSError:
+        os.close(fd)
+        raise
+    try:
+        process = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+            close_fds=True,
+            cwd=str(Path.home()),
+            env=env,
+        )
     except OSError as exc:
         raise DaemonError(f"could not start the daemon: {exc}") from exc
+    finally:
+        log_handle.close()
 
     deadline = time.monotonic() + wait_seconds
     while time.monotonic() < deadline:

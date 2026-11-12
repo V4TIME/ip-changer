@@ -32,8 +32,14 @@ fi
 log "Extracting..."
 tar -xzf "$TMP_DIR/source.tar.gz" -C "$TMP_DIR" || die "could not extract the archive"
 
-SRC_DIR="$(find "$TMP_DIR" -mindepth 1 -maxdepth 1 -type d -name 'ip-changer-*' -print -quit)"
-[ -n "$SRC_DIR" ] && [ -x "$SRC_DIR/install.sh" ] || die "archive did not contain install.sh"
+SRC_DIR=""
+for candidate in "$TMP_DIR"/ip-changer-*; do
+    if [ -d "$candidate" ] && [ -x "$candidate/install.sh" ]; then
+        SRC_DIR="$candidate"
+        break
+    fi
+done
+[ -n "$SRC_DIR" ] || die "archive did not contain install.sh"
 
 log "Running the installer..."
 # install.sh handles sudo internally, so this also works when piped without sudo.

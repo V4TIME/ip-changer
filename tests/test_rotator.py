@@ -11,7 +11,7 @@ from ipchanger.config import Config, ConfigError
 from ipchanger.rotator import Rotator, RotationResult
 from ipchanger.scheduler import Scheduler
 from ipchanger.state import LogWriter, State, StateStore, read_log_records, tail_log_records
-from ipchanger.torhttp import ExitIP
+from ipchanger.torhttp import ExitIP, TorVerificationError
 
 
 class FakeClock:
@@ -130,6 +130,31 @@ class RotatorTests(unittest.TestCase):
         self.assertEqual(result.ip, "7.7.7.7")
         self.assertEqual(store.load().last_ip, "7.7.7.7")
 
+    def test_verification_error_fails_rotation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            store = StateStore(root / "state.json")
+            store.save(State(last_ip="1.1.1.1", last_newnym=0))
+
+            def ip_getter(_config: Config) -> ExitIP:
+                raise TorVerificationError("check service says this is not Tor")
+
+            rotator = Rotator(
+                Config(interval=10, change_timeout=5, poll_interval=0.25).validate(),
+                state_store=store,
+                log_writer=LogWriter(Config().validate(), root / "ipchanger.log"),
+                controller_factory=lambda _config: FakeController(),
+                ip_getter=ip_getter,
+                sleep=lambda _seconds: None,
+                clock=FakeClock(),
+                use_lock=False,
+            )
+            result = rotator.rotate()
+            self.assertFalse(result.ok)
+            self.assertIsNone(result.new_ip)
+            self.assertIn("not Tor", result.error or "")
+            self.assertEqual(store.load().total_failures, 1)
+
 
 class FakeRotator:
     def __init__(self, ok: bool = True) -> None:
@@ -183,6 +208,20 @@ class SchedulerTests(unittest.TestCase):
             code = scheduler.run(interval=10, once=True)
             self.assertEqual(code, 0)
             self.assertEqual(fake.calls, 1)
+
+    def test_once_logs_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            messages: list[str] = []
+            scheduler = Scheduler(
+                Config().validate(),
+                FakeRotator(ok=False),  # type: ignore[arg-type]
+                state_store=StateStore(Path(tmp) / "state.json"),
+                sleep=lambda _seconds: None,
+                log=messages.append,
+            )
+            code = scheduler.run(interval=10, once=True)
+            self.assertEqual(code, 1)
+            self.assertTrue(any("rotation failed" in message for message in messages))
 
     def test_interval_below_minimum_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

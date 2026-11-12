@@ -76,6 +76,13 @@ class Scheduler:
                 failures = 0 if result.ok else 1
                 if self.on_result:
                     self.on_result(result)
+                if result.ok:
+                    self.log(
+                        f"rotated: {result.old_ip or '?'} -> {result.new_ip or '?'}"
+                        + (f" ({result.error})" if result.error else "")
+                    )
+                else:
+                    self.log(f"rotation failed: {result.error}")
                 if once:
                     return 0 if result.ok else 1
 

@@ -65,11 +65,12 @@ platform supports it, and runs diagnostics for you.
 1. Installs `tor` and Python 3.10+ with your package manager.
 2. Backs up torrc and adds a marked control-port/cookie block, then validates it
    with `tor --verify-config`.
-3. Adds your user to the real Tor group (`debian-tor`, `tor`, `toranon` or `_tor`).
+3. Adds your user to the real Tor group on Linux (`debian-tor`, `tor`, `toranon`
+   or `_tor`).
 4. Installs to `/opt/ip-changer` + `/usr/local/bin/ipchanger` (or a per-user
    prefix without root, or `$PREFIX/share/ip-changer` on Termux).
-5. Starts Tor, waits for the control port, creates the service, and runs
-   `ipchanger doctor --quick`.
+5. Starts Tor, waits for the control port, creates the service where the
+   platform supports it, and runs `ipchanger doctor --quick`.
 6. Prints the panel/status/log commands when it finishes.
 
 Nothing is hidden: `--dry-run` shows the plan, `--no-service` skips the service,
@@ -83,7 +84,8 @@ and `--interval` avoids the prompt. Uninstall with `sudo ./uninstall.sh`; add
 ```bash
 git clone https://github.com/V4TIME/ip-changer.git
 cd ip-changer
-sudo ./install.sh --interval 5m
+sudo ./install.sh --interval 5m     # Linux
+./install.sh --interval 5m          # macOS
 ipchanger doctor
 ipchanger panel
 ```
@@ -100,14 +102,15 @@ ipchanger panel
 | Windows | not supported natively | use WSL2 or a Linux VM |
 
 Python 3.10 or newer is required. There are **no runtime dependencies** beyond
-the standard library and Tor. macOS uses Homebrew; Alpine and macOS have no
-systemd, so the installer starts Tor and tells you to use `ipchanger start`.
+the standard library and Tor. macOS uses Homebrew services; Alpine uses OpenRC
+when available. Neither has systemd, so start the background daemon with
+`ipchanger start`.
 
 ## Why choose IP Changer?
 
-Most “IP changer” scripts only fire `SIGNAL NEWNYM` and print an IP. This one is
-built like a small service: it verifies the result, keeps state, exposes a real
-scheduler, and stays out of your way.
+Most “IP changer” scripts only fire `SIGNAL NEWNYM` and print an IP. IP Changer
+verifies the result, keeps state, runs a real scheduler, and stays out of your
+way.
 
 - **It proves the change.** Waits for a new exit, compares old/new IPs, validates
   the response, and checks `IsTor`.
@@ -115,24 +118,24 @@ scheduler, and stays out of your way.
   jitter, not a systemd `RestartSec` hack.
 - **It is safe by default.** No root service running a user-writable script;
   torrc edits are backed up, marked, and validated.
-- **It is made for Termux.** No systemd requirement, no root, battery-friendly
+- **It works on Termux.** No systemd requirement, no root, battery-friendly
   start/stop and boot-script support.
 - **You control the logs.** JSONL history can be turned off from the panel (`g`)
   or with `ipchanger logs --off`.
-- **Zero dependencies.** The Tor control protocol, SOCKS5 client and HTTP checks
-  are implemented in Python.
+- **No runtime dependencies.** The Tor control protocol, SOCKS5 client and HTTP
+  checks use only the Python standard library.
 
 ### Compared with the alternatives
 
 | | **IP Changer** | [techchipnet/ip-changer](https://github.com/techchipnet/ip-changer) | Manual Tor + `NEWNYM` | VPN |
 |---|---|---|---|---|
-| Scheduled rotation | ✅ | ✅ | ❌ | ❌ |
-| Verifies the new exit IP | ✅ | ❌ | ❌ | ❌ |
-| Terminal control panel | ✅ | ❌ | ❌ | ❌ |
-| Runs as a non-root user | ✅ | ❌ root service | ✅ | ✅ |
-| Termux / Android | ✅ | ❌ | Manual | App only |
-| Safe, validated torrc edits | ✅ | ❌ blind append | Manual | N/A |
-| Logging can be disabled | ✅ | ❌ broken path | ❌ | N/A |
+| Scheduled rotation | Yes | Yes | No | No |
+| Verifies the new exit IP | Yes | No | No | No |
+| Terminal control panel | Yes | No | No | No |
+| Runs as a non-root user | Yes | No (root service) | Yes | Yes |
+| Termux / Android | Yes | No | Manual | App only |
+| Safe, validated torrc edits | Yes | No (blind append) | Manual | N/A |
+| Logging can be disabled | Yes | No (broken path) | No | N/A |
 | Setup | one command | two scripts | several steps | account/app |
 | Cost | free, MIT | free | free | usually paid |
 
@@ -349,23 +352,11 @@ Paths:
 - [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
   of the original project.
 
-## Development
-
-```bash
-git clone https://github.com/V4TIME/ip-changer.git
-cd ip-changer
-python3 -m unittest discover -s tests -v
-python3 -m compileall -q ipchanger scripts
-bash -n install.sh uninstall.sh get.sh
-```
-
-The tests need no Tor or network: they use a fake control server, a fake SOCKS5
-proxy and a local HTTP server. CI runs them on Python 3.10, 3.11 and 3.13.
-
 ## Uninstall
 
 ```bash
-sudo ./uninstall.sh            # keep config/state
+sudo ./uninstall.sh            # system install; keep config/state
+./uninstall.sh                 # per-user install (macOS or non-root Linux)
 sudo ./uninstall.sh --purge    # also remove config, state and logs
 ```
 
@@ -378,6 +369,4 @@ MIT. See [`LICENSE`](LICENSE).
 
 ## Credits
 
-The original idea and demo: [TechChip / techchipnet](https://github.com/techchipnet/ip-changer).
-This alternative keeps the core `NEWNYM` idea, adds a control panel and a tested
-implementation, and documents the original's pitfalls.
+Original idea and demo: [TechChip / techchipnet](https://github.com/techchipnet/ip-changer).

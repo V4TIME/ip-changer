@@ -107,6 +107,37 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["new_ip"], "2.2.2.2")
         self.assertTrue(payload["ok"])
 
+    def test_global_config_without_command_opens_panel(self) -> None:
+        config_path = Path(self.temp.name) / "custom.json"
+        with patch("ipchanger.cli.run_panel", return_value=0) as panel:
+            code, _, err = self.run_cli("--config", str(config_path))
+        self.assertEqual(code, 0, err)
+        panel.assert_called_once()
+        self.assertEqual(panel.call_args.args[1], config_path)
+
+    def test_run_once_reports_failure(self) -> None:
+        class FailingRotator:
+            def __init__(self, _config: object, **_kwargs: object) -> None:
+                pass
+
+            def rotate(self) -> RotationResult:
+                return RotationResult(
+                    ok=False,
+                    changed=False,
+                    old_ip=None,
+                    new_ip=None,
+                    is_tor=None,
+                    source=None,
+                    error="control port is down",
+                    duration_ms=1,
+                )
+
+        with patch("ipchanger.cli.Rotator", FailingRotator):
+            code, out, err = self.run_cli("run", "--once")
+        self.assertEqual(code, 1, err)
+        self.assertIn("rotation failed", out)
+        self.assertIn("control port is down", out)
+
     def test_doctor_reports_invalid_config(self) -> None:
         config_path = Path(self.temp.name) / "config" / "config.json"
         config_path.parent.mkdir(parents=True)

@@ -69,7 +69,13 @@ def render_text_dashboard(
         f"Tor exit IP   : {state.last_ip or 'not checked'}",
         f"Tor check     : {tor_text}",
         f"Previous IP   : {state.previous_ip or '-'}",
-        f"Last change   : {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(state.last_success)) if state.last_success else 'never'} ({human_age(state.last_success)})",
+        "Last change   : "
+        + (
+            f"{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(state.last_success))}"
+            f" ({human_age(state.last_success)})"
+            if state.last_success
+            else "never"
+        ),
         f"Next change   : {next_text}",
         f"Interval      : {format_duration(config.interval)} ({config.interval}s)",
         f"Jitter        : {config.jitter}%",
@@ -136,7 +142,7 @@ class _Dashboard:
         def worker() -> None:
             try:
                 self.jobs.put((name, function(), None))
-            except Exception as exc:  # handed back to the UI
+            except Exception as exc:
                 self.jobs.put((name, None, exc))
 
         self.job_thread = threading.Thread(target=worker, name=f"ipchanger-{name}", daemon=True)
@@ -502,10 +508,13 @@ def _panel_main(stdscr: Any, config: Config, config_file: Path | None) -> None:
             _text_view(stdscr, "IP Changer doctor", lines)
             stdscr.timeout(1000)
         elif key in (ord("c"), ord("C")):
+            values = dash.config.to_dict()
+            if values.get("password"):
+                values["password"] = "***"
             lines = [
                 f"Config file: {config_file or config_path()}",
                 "",
-                *json.dumps(dash.config.to_dict(), indent=2).splitlines(),
+                *json.dumps(values, indent=2).splitlines(),
             ]
             _text_view(stdscr, "Configuration", lines)
             stdscr.timeout(1000)

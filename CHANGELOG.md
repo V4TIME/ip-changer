@@ -2,8 +2,8 @@
 
 ## 1.1.1 - 2026-11-11
 
-- Rewrote the README with a one-command quick start, platform table, a
-  “Why choose IP Changer?” comparison, and a Chrome/Firefox setup section.
+- One-command installation for Linux, macOS and Termux, with a supported
+  platform table and a “Why choose IP Changer?” comparison.
 - Added `docs/BROWSER_SETUP.md` with desktop Chrome/Chromium/Edge/Brave,
   Firefox, Android/Orbot, `torsocks` and `proxychains` instructions.
 - Fixed the installer's torrc step to use sudo when run as a non-root user
@@ -18,7 +18,6 @@
 - The panel now shows the latest rotation event and displays the interval in
   seconds alongside the human-readable value.
 - Added a complete step-by-step tutorial in `docs/TUTORIAL.md`.
-- 45 unit tests, including disabled logging and log tailing.
 
 ## 1.0.1 - 2026-11-11
 
@@ -43,5 +42,4 @@ Initial release.
 - Installer/uninstaller for Debian-family, Arch, Fedora, openSUSE, Alpine,
   macOS (CLI) and Termux.
 - torrc backup, managed block, validation and correct Tor group discovery.
-- 42 unit tests and GitHub Actions CI.
 - Upstream `techchipnet/ip-changer` review with line-referenced bugs.
