@@ -14,3 +14,13 @@
 # buildozer drops version specifiers before handing the list to p4a, so a pin
 # in `requirements` has no effect on the resolved graph.
 charset-normalizer==3.3.2
+
+# python-for-android creates a virtualenv from the hostpython it built (3.14.2,
+# which bundles pip 25.3) and then runs `pip install -U pip`. That self-upgrade
+# is racy: pip replaces its own files while running, and the next import can see
+# a half-upgraded tree:
+#   ImportError: cannot import name 'capture_logging' from
+#   'pip._internal.utils.logging'
+# Pinning the bundled version makes the upgrade a no-op, so the venv stays
+# consistent. Drop this line only together with a p4a/hostpython upgrade.
+pip==25.3
