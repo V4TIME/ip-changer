@@ -27,14 +27,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      # The SDK/NDK download dominates the first build; reuse it afterwards.
-      - name: Cache Android SDK and NDK
+      # The SDK/NDK download and the compiled Kivy dist dominate the build time;
+      # reuse both so a retry after a spec fix does not rebuild from scratch.
+      - name: Cache Android build
         uses: actions/cache@v4
         with:
-          path: ~/.buildozer/android/platform
-          key: android-platform-${{ runner.os }}-${{ hashFiles('noteapp/buildozer.spec') }}
+          path: |
+            ~/.buildozer/android/platform
+            noteapp/.buildozer
+          key: android-build-${{ runner.os }}-${{ hashFiles('noteapp/buildozer.spec', 'noteapp/*.py') }}
           restore-keys: |
-            android-platform-${{ runner.os }}-
+            android-build-${{ runner.os }}-${{ hashFiles('noteapp/buildozer.spec') }}
+            android-build-${{ runner.os }}-
 
       - name: System dependencies
         run: |

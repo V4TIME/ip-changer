@@ -7,7 +7,13 @@ source.include_exts = py,png,jpg,kv,atlas,ttf,txt,json
 version = 1.0.0
 
 # Kivy only. No network libraries, no analytics, no accounts.
-requirements = python3,kivy
+#
+# charset-normalizer is pinned on purpose: it is an indirect dependency of
+# Kivy (via requests). Newer releases publish Android-specific wheels
+# (cp314-...-android_24_arm64_v8a) that python-for-android's resolver picks and
+# then fails to install. 3.3.2 is the pure-Python wheel, which installs
+# everywhere.
+requirements = python3,kivy==2.3.2,charset-normalizer==3.3.2
 
 orientation = portrait
 fullscreen = 0
