@@ -56,6 +56,9 @@ jobs:
 
       - name: Build debug APK
         working-directory: noteapp
+        env:
+          # Forces the pure-Python wheel for charset-normalizer; see the file.
+          PIP_CONSTRAINT: ${{ github.workspace }}/noteapp/pip-constraints.txt
         run: |
           set -o pipefail
           buildozer -v android debug 2>&1 | tee build.log

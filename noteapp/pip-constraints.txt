@@ -1,0 +1,16 @@
+# pip constraints applied while python-for-android resolves the app's
+# dependencies (the workflow exports PIP_CONSTRAINT to point at this file).
+#
+# charset-normalizer is an indirect dependency of Kivy (Kivy -> requests ->
+# charset-normalizer). Since 3.5 it publishes Android wheels such as
+#   charset_normalizer-3.5.3-cp314-cp314-android_24_arm64_v8a.whl
+# python-for-android's resolver prefers that wheel, but its install step does
+# not pass --platform, so pip rejects it:
+#   ERROR: ... is not a supported wheel on this platform.
+# 3.3.2 is published as py3-none-any, which installs on the build host and is
+# copied into the APK unchanged.
+#
+# Keeping this here (rather than in buildozer.spec requirements) matters:
+# buildozer drops version specifiers before handing the list to p4a, so a pin
+# in `requirements` has no effect on the resolved graph.
+charset-normalizer==3.3.2
