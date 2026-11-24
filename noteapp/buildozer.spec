@@ -24,4 +24,6 @@ android.release_artifact = pixnote
 
 [buildozer]
 log_level = 2
-warn_on_root = 1
+# CI runs inside a container as root; the interactive warning cannot be
+# answered without a TTY, so it is disabled explicitly.
+warn_on_root = 0
