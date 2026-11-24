@@ -18,22 +18,48 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Toolchain
+        run: |
+          python3 --version
+          buildozer --version
+          java -version 2>&1 | head -1
+
       - name: Build debug APK
         working-directory: noteapp
         run: |
-          set -eux
-          buildozer -v android debug
+          set -o pipefail
+          buildozer -v android debug 2>&1 | tee build.log
 
       - name: Collect APK
+        if: success()
         run: |
-          set -eux
           mkdir -p out
           cp noteapp/bin/*.apk out/
           ls -lh out
 
       - name: Upload APK
+        if: success()
         uses: actions/upload-artifact@v4
         with:
           name: pixnote-debug-apk
           path: out/*.apk
           if-no-files-found: error
+
+      - name: Publish build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: buildozer-log
+          path: noteapp/build.log
+          if-no-files-found: ignore
+
+      - name: Annotate failure
+        if: failure()
+        run: |
+          LOG=noteapp/build.log
+          if [ ! -f "$LOG" ]; then
+            echo "::error title=Buildozer::no build.log was produced"
+            exit 0
+          fi
+          MSG=$(tail -n 120 "$LOG" | sed 's/%/%25/g' | sed 's/\r//g' | awk '{printf "%s%%0A", $0}')
+          echo "::error title=Buildozer log tail::$MSG"
