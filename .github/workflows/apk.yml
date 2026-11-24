@@ -11,19 +11,29 @@ jobs:
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 90
+    container:
+      image: kivy/buildozer:latest
+      options: --user root
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Build debug APK
-        uses: ArtemSBulgakov/buildozer-action@v1
-        with:
-          workdir: noteapp
-          command: buildozer android debug
-          buildozer_version: stable
+        working-directory: noteapp
+        run: |
+          set -eux
+          buildozer -v android debug
+
+      - name: Collect APK
+        run: |
+          set -eux
+          mkdir -p out
+          cp noteapp/bin/*.apk out/
+          ls -lh out
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: pixnote-debug-apk
-          path: noteapp/bin/*.apk
+          path: out/*.apk
           if-no-files-found: error
