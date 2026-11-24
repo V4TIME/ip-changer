@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.2.0 - 2026-11-24
+
+- Rebuilt the control panel: one filled connection bar (connected, connecting,
+  unverified, not-using-Tor, disconnected), a two-column status grid, a live
+  bottom-anchored activity tail, and a 1 Hz redraw gate instead of a busy loop.
+- Restored every panel control after a regression that removed them: interval,
+  jitter, logging, verification, log pager, doctor, config and help.
+- Fixed `ipchanger.tui` failing to import, which broke `ipchanger` and
+  `ipchanger panel` entirely.
+- Added `ipchanger/theme.py` with the palette, glyphs and layout metrics, plus a
+  monochrome and ASCII fallback for terminals without colour or UTF-8.
+- Added `noteapp/`, an offline Android note app (Kivy) with private atomic
+  storage, corruption recovery, legacy import, and its own tests.
+- Added `.github/workflows/apk.yml` to build the note APK in CI.
+- Added `docs/AUDIT.md` with findings, verification and remaining risks.
+
 ## 1.1.1 - 2026-11-11
 
 - One-command installation for Linux, macOS and Termux, with a supported

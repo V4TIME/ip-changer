@@ -1,0 +1,29 @@
+name: apk
+
+on:
+  push:
+    paths:
+      - "noteapp/**"
+      - ".github/workflows/apk.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build debug APK
+        uses: ArtemSBulgakov/buildozer-action@v1
+        with:
+          workdir: noteapp
+          command: buildozer android debug
+          buildozer_version: stable
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: pixnote-debug-apk
+          path: noteapp/bin/*.apk
+          if-no-files-found: error

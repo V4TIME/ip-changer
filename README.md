@@ -216,24 +216,20 @@ Full browser and Android notes: [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md)
 ## Control panel
 
 ```text
-+ IP Changer 1.1.1 -------------------------------------------------+
-|                                                                  |
-| Service       RUNNING  pid 42117                                 |
-| Tor exit IP   185.220.101.42                                     |
-| Tor check     verified                                           |
-| Previous IP   51.15.43.8                                         |
-| Last change   2026-11-11 12:34:56  (12s ago)                     |
-| Next change   in 1m 48s                                          |
-| Interval      2m  (120s, jitter 0%)                              |
-| Options       verify on   logs on                                |
-| Rotations     42 ok  /  0 failed                                 |
-| Last event    2026-11-11T12:34:56  rotation  51.15.43.8 -> ...   |
-|                                                                  |
-+------------------------------------------------------------------+
-| [s] start/stop  [r] rotate now  [v] check IP  [i] interval       |
-| [g] logging  [t] verification  [l] logs  [d] doctor  [c] config  |
-| Ready. Press ? for help.                                         |
-+------------------------------------------------------------------+
+IP Changer                                                       v1.2.0
+──────────────────────────────────────────────────────────────────────
+ █ CONNECTED   Tor exit confirmed                          up 01:24:37
+ Exit IP        185.220.101.42       Interval       2m · jitter 0%
+ Verification   Tor exit confirmed   Last change    12:34:56 · 12s ago
+ Rotates        in 1m 48s            Rotations      42 ok · 0 failed
+ Session        01:24:37             Proxy          127.0.0.1:9050 (SOCKS5)
+ Recent activity ─────────────────────────────────────────────────────
+ 12:34:56  rotate   51.15.43.8 → 185.220.101.42  ·  tor ✓  ·  842 ms
+ 12:32:56  rotate   185.220.101.42 → 51.15.43.8  ·  tor ✓  ·  901 ms
+ 12:30:56  session  rotation started · every 2m
+──────────────────────────────────────────────────────────────────────
+[s] disconnect  [r] rotate now  [v] verify  [l] log  [i] interval  [d] doctor  [?] help  [q] quit
+Apps only get a new exit IP when they use the SOCKS5 proxy at 127.0.0.1:9050.
 ```
 
 | Key | Action |
@@ -349,6 +345,8 @@ Paths:
   `torsocks` and verification.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module map and data flow.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and safe defaults.
+- [`docs/AUDIT.md`](docs/AUDIT.md) — 2026-11-24 findings, fixes and verification.
+- [`noteapp/`](noteapp/) — offline Android note app and its APK build workflow.
 - [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
   of the original project.
 

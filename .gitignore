@@ -12,4 +12,7 @@ htmlcov/
 .ruff_cache/
 *.log
 *.pid
+*.apk
+noteapp/bin/
+noteapp/.buildozer/
 .DS_Store

@@ -41,6 +41,7 @@ during a rotation.
 | `ipchanger/state.py` | `State` dataclass, atomic state file, rotated JSONL log, PID helpers, `flock` lock. |
 | `ipchanger/daemon.py` | Detach `ipchanger run`, write/read PID, graceful stop, restart. |
 | `ipchanger/tui.py` | Curses control panel and plain-text fallback. |
+| `ipchanger/theme.py` | Palette, glyphs and layout metrics (no curses import). |
 | `ipchanger/doctor.py` | Environment checks used by `ipchanger doctor` and the panel. |
 | `ipchanger/cli.py` | Argument parsing and all commands. |
 | `install.sh` / `uninstall.sh` | Packages, torrc, user/group, wrapper, service, Termux service. |
@@ -125,12 +126,25 @@ redirects. No `requests`, `PySocks`, `curl`, or `jq` is required.
 
 ## The control panel
 
-`ipchanger panel` runs a curses loop with a one-second refresh. It reads state,
-not the network, so it stays responsive. Expensive operations (rotate now,
-verify, doctor) run in a worker thread and report back through a queue. The
-panel can start/stop the daemon; changing interval or jitter saves the config
-and restarts the daemon so the new value takes effect immediately. Press `?`
-inside the panel for the key list.
+`ipchanger panel` runs a curses loop that polls input every 200 ms and only
+redraws when a value changes or a second ticks, so it stays quiet on battery.
+It reads state, not the network. Expensive operations (rotate now, verify,
+doctor) run in a worker thread and report back through a queue. The panel can
+start/stop the daemon; changing interval or jitter saves the config and
+restarts the daemon so the new value takes effect immediately. Press `?` inside
+the panel for the key list.
+
+The visual layer is split in two: `ipchanger/theme.py` holds palette indices,
+glyphs and layout metrics (no `curses` import, so it is testable), and
+`ipchanger/tui.py` turns state into layout. The panel collapses to a compact
+four-line view below 44×16 cells, and falls back to `render_text_dashboard`
+when stdout is not a TTY.
+
+## The Android note app
+
+`noteapp/` is a separate Kivy application. `noteapp/store.py` is pure standard
+library and is covered by `noteapp/tests/test_store.py`; `noteapp/main.py` is
+the UI. The APK is built by `.github/workflows/apk.yml`.
 
 ## Testing without Tor
 
