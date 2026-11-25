@@ -17,8 +17,11 @@ requirements = python3,kivy==2.3.2
 orientation = portrait
 fullscreen = 0
 
-# Private app storage only: no external-storage or internet permission needed.
-android.permissions =
+# No permissions are requested: notes live in private app storage, and the app
+# never touches the network. The key must be *absent*, not empty: an empty
+# value makes buildozer pass `--permission ''`, and python-for-android turns
+# that into `<uses-permission android:name="android.permission." />`, which the
+# manifest merger rejects.
 android.api = 34
 android.minapi = 24
 android.ndk_api = 24

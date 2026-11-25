@@ -31,8 +31,22 @@ buildozer android debug
 
 ## Permissions
 
-`android.permissions` is empty on purpose. The app needs no internet, no
-external storage and no location access.
+The app requests none: no internet, no external storage, no location. The
+`android.permissions` key is omitted from `buildozer.spec` rather than set to
+an empty value, because an empty value makes buildozer pass `--permission ''`,
+which python-for-android renders as
+`<uses-permission android:name="android.permission." />` and the manifest
+merger rejects.
+
+## Build-time pins
+
+`pip-constraints.txt` is exported as `PIP_CONSTRAINT` for the build. It pins
+two things that otherwise break the APK build:
+
+- `charset-normalizer==3.3.2` — newer releases ship Android wheels that
+  python-for-android resolves and then refuses to install.
+- `pip==25.3` — python-for-android upgrades pip inside its own build venv;
+  that self-upgrade left a half-replaced tree and crashed on import.
 
 ## Tests
 
