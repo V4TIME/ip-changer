@@ -3,7 +3,10 @@ name: apk
 on:
   push:
     paths:
-      - "noteapp/**"
+      - "noteapp/**/*.py"
+      - "noteapp/buildozer.spec"
+      - "noteapp/pip-constraints.txt"
+      - "noteapp/assets/**"
       - ".github/workflows/apk.yml"
   workflow_dispatch:
 

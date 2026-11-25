@@ -31,14 +31,38 @@ Scope: the terminal control panel (`ipchanger/`) and the Android note app
 | Panel under a pty at 100×30, 80×24, 60×18, 44×16, 30×10 | exit 0, no traceback |
 | Kivy headless smoke (SDL `offscreen`) | build, save, reject empty, delete, persist → `SMOKE OK` |
 | Rendered frames at 420×800 and 360×740 | reviewed; layout and contrast verified |
+| `.github/workflows/apk.yml` on GitHub Actions | **success** — `pixnote-debug-apk`, 41.8 MB ([run 45619201234](https://github.com/V4TIME/ip-changer/actions/runs/45619201234)) |
+| `tests` workflow on the same commit | 3.10 / 3.11 / 3.13 all green |
+
+### What the APK build had to fix
+
+The first CI runs exposed six real problems. Each was diagnosed from the build
+log, fixed, and re-run until the artifact existed:
+
+| # | Symptom | Cause | Fix |
+| --- | --- | --- | --- |
+| 1 | Action failed before our command ran | Third-party `buildozer-action` broke in its own setup | Build with Buildozer directly on the runner |
+| 2 | `EOFError` asking `[y/n]` | `warn_on_root = 1` prompts on stdin, and CI has no TTY | `warn_on_root = 0` |
+| 3 | `pip` import error inside the build venv | Container image moved to Python 3.14, where p4a's bootstrap pip broke | Ubuntu 22.04 runner + `setup-python` 3.11 |
+| 4 | `charset_normalizer-…-android_24_arm64_v8a.whl is not a supported wheel` | PyPI now publishes Android wheels; p4a resolves them but installs without `--platform` | Pin `charset-normalizer==3.3.2` (pure wheel) via `PIP_CONSTRAINT` |
+| 5 | `ImportError: cannot import name 'capture_logging'` | p4a upgrades pip inside its own venv; the self-upgrade left a mixed tree (intermittent) | Pin `pip==25.3` so the upgrade is a no-op |
+| 6 | `Android Gradle plugin requires Java 17 … currently using Java 11` | The runner's default `JAVA_HOME` is JDK 11 | Export `JAVA_HOME` pointing at JDK 17 |
+
+A seventh bug was ours, not the toolchain's: `android.permissions =` (empty)
+made Buildozer pass `--permission ''`, which python-for-android rendered as
+`<uses-permission android:name="android.permission." />`; the AGP manifest
+merger rejects that name. The key is now omitted, so the app requests no
+permissions at all.
 
 ### Not verified here
 
-- **The APK was not compiled on this machine.** Buildozer needs the Android
-  SDK/NDK and root-installed packages. `.github/workflows/apk.yml` builds it in
-  CI; the first green run is the proof.
-- No physical-device test.
+- **No physical-device or emulator run.** The APK installs and starts only
+  once someone runs it on Android; CI proves it compiles, signs with the debug
+  key, and packages.
 - Only a **debug** APK is configured. Release signing keys are not set up.
+- The APK is ~42 MB because Kivy ships both `arm64-v8a` and `armeabi-v7a`.
+  Dropping the 32-bit ABI would roughly halve it, at the cost of very old
+  devices.
 
 ## Design system
 
@@ -76,5 +100,10 @@ three-card feature grids, dim-only secondary text, ASCII box art.
    they send traffic to the SOCKS proxy. The panel now says this on screen.
 3. **No exit selection.** Tor chooses the exit; there is no country picker, by
    design of the network.
-4. **CI-only APK build.** Until the workflow runs once, treat the Android
-   artifact as unproven.
+4. **The APK is CI-built and debug-signed.** It is proven to compile and
+   package, but it has not been run on a device, and a debug key is not
+   suitable for store distribution.
+5. **Pinned build-time versions age.** `pip-constraints.txt` pins
+   `charset-normalizer` and `pip` to work around python-for-android's
+   resolver and its pip self-upgrade. Re-check both when Buildozer or
+   python-for-android is upgraded.

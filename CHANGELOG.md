@@ -13,7 +13,8 @@
   monochrome and ASCII fallback for terminals without colour or UTF-8.
 - Added `noteapp/`, an offline Android note app (Kivy) with private atomic
   storage, corruption recovery, legacy import, and its own tests.
-- Added `.github/workflows/apk.yml` to build the note APK in CI.
+- Added `.github/workflows/apk.yml` to build the note APK in CI, verified by a
+  green run producing `pixnote-debug-apk` (41.8 MB).
 - Added `docs/AUDIT.md` with findings, verification and remaining risks.
 
 ## 1.1.1 - 2026-11-11

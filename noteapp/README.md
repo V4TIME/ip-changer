@@ -12,9 +12,21 @@ muted accent, a bundled monospace face. No account, no network, no analytics.
   being deleted.
 - Legacy note files (a bare JSON list of strings) are imported on first load.
 
+## Get the APK
+
+The latest build is the `pixnote-debug-apk` artifact of the `apk` workflow:
+**Actions → apk → latest green run → Artifacts**. It is a debug-signed,
+installable APK (no Python or Termux needed).
+
+A green build of commit `c1c5d88`: 41.8 MB, `arm64-v8a` + `armeabi-v7a`
+([run 45619201234](https://github.com/V4TIME/ip-changer/actions/runs/45619201234)).
+While signed in, GitHub downloads artifacts as a zip; unzip it, copy the
+`.apk` to the phone, and allow installing from the file manager.
+
 ## Build the APK
 
-The APK is produced in CI, not on a phone.
+The APK is produced in CI, not on a phone. The workflow rebuilds when
+`noteapp/` code, `buildozer.spec`, assets or the workflow itself change.
 
 1. Push to `main`.
 2. Open **Actions → apk → Build debug APK**.
@@ -25,7 +37,7 @@ Locally (needs Android SDK + NDK, ~10 GB):
 ```bash
 cd noteapp
 pip install buildozer cython
-buildozer android debug
+PIP_CONSTRAINT=pip-constraints.txt buildozer android debug
 # output: noteapp/bin/pixnote-1.0.0-arm64-v8a_armeabi-v7a-debug.apk
 ```
 
