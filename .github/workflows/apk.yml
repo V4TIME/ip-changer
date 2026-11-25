@@ -51,6 +51,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install "cython<3.0" buildozer
 
+      # The image's default java is 11; the Android Gradle plugin used by
+      # python-for-android refuses anything below 17.
+      - name: Use JDK 17
+        run: |
+          JDK="${JAVA_HOME_17_X64:-/usr/lib/jvm/temurin-17-jdk-amd64}"
+          if [ ! -x "$JDK/bin/javac" ]; then
+            JDK=/usr/lib/jvm/java-17-openjdk-amd64
+          fi
+          test -x "$JDK/bin/javac"
+          echo "JAVA_HOME=$JDK" >> "$GITHUB_ENV"
+          "$JDK/bin/java" -version
+
       - name: Build debug APK
         working-directory: noteapp
         env:
