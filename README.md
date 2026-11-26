@@ -245,7 +245,7 @@ run here.
 ## Control panel
 
 ```text
-IP Changer                                                       v1.3.0
+IP Changer                                                       v1.3.1
 ──────────────────────────────────────────────────────────────────────
  █ CONNECTED   Tor exit confirmed                          up 01:24:37
  Exit IP        185.220.101.42       Interval       2m · jitter 0%
@@ -377,8 +377,7 @@ Paths:
   `torsocks` and verification.
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — module map and data flow.
 - [`docs/SECURITY.md`](docs/SECURITY.md) — threat model and safe defaults.
-- [`docs/AUDIT.md`](docs/AUDIT.md) — 2026-11-24 findings, fixes and verification.
-- [`noteapp/`](noteapp/) — offline Android note app and its APK build workflow.
+- [`docs/AUDIT.md`](docs/AUDIT.md) — 2026-11-26 findings, fixes and verification.
 - [`docs/UPSTREAM_REVIEW.md`](docs/UPSTREAM_REVIEW.md) — line-referenced review
   of the original project.
 

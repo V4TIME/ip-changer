@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1 - 2026-11-26
+
+- Removed the Android note app (`noteapp/`), its Kivy/Buildozer configuration,
+  the `apk` workflow and the APK diagnostics script. This repository is the
+  terminal/Termux IP Changer; it does not ship a VPN or an Android app.
+- CI no longer runs note-app storage tests.
+
 ## 1.3.0 - 2026-11-25
 
 - Added SOCKS-identity rotation (`rotation_mode=socks`): every attempt uses a

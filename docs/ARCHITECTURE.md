@@ -172,12 +172,6 @@ glyphs and layout metrics (no `curses` import, so it is testable), and
 four-line view below 44×16 cells, and falls back to `render_text_dashboard`
 when stdout is not a TTY.
 
-## The Android note app
-
-`noteapp/` is a separate Kivy application. `noteapp/store.py` is pure standard
-library and is covered by `noteapp/tests/test_store.py`; `noteapp/main.py` is
-the UI. The APK is built by `.github/workflows/apk.yml`.
-
 ## Testing without Tor
 
 The tests use a fake control-port server, a fake SOCKS5 proxy and a local HTTP

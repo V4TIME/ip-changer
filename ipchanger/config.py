@@ -12,7 +12,7 @@ from typing import Any, Iterable
 
 APP_NAME = "ipchanger"
 DISPLAY_NAME = "IP Changer"
-VERSION = "1.3.0"
+VERSION = "1.3.1"
 
 MIN_NEWNYM_INTERVAL = 10  # Tor accepts SIGNAL NEWNYM at most once per 10 s.
 DEFAULT_CHECK_URLS = [
