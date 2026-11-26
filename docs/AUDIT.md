@@ -65,6 +65,9 @@ permissions at all.
 - **No physical-device or emulator run.** The APK installs and starts only
   once someone runs it on Android; CI proves it compiles, signs with the debug
   key, and packages.
+- **Orbot itself was not available here.** SOCKS rotation was proven against a
+  local Tor 0.4.9.16 with its control port closed. Orbot exposes the same Tor
+  SOCKS listener, but the end-to-end phone test is still owed.
 - Only a **debug** APK is configured. Release signing keys are not set up.
 - The APK is ~42 MB because Kivy ships both `arm64-v8a` and `armeabi-v7a`.
   Dropping the 32-bit ABI would roughly halve it, at the cost of very old

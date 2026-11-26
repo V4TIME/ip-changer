@@ -238,6 +238,10 @@ each app only gets a new exit when it sends its own traffic through that SOCKS
 proxy. A SOCKS proxy without credentials cannot be told to build a new circuit
 from outside, which is why Orbot's VPN mode has its own new-identity button.
 
+Verified against a local Tor 0.4.9.16 with its control port closed. Orbot
+exposes the same Tor SOCKS listener, but the end-to-end phone test has not been
+run here.
+
 ## Control panel
 
 ```text
