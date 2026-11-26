@@ -136,6 +136,15 @@ def run_checks(
             )
         )
 
+    socks_allowed = config.rotation_mode in {"auto", "socks"}
+    if config.rotation_mode == "control":
+        mode_detail = "control port only (SIGNAL NEWNYM)"
+    elif config.rotation_mode == "socks":
+        mode_detail = "SOCKS identity isolation (works with Orbot, no control port needed)"
+    else:
+        mode_detail = "auto: control port when reachable, otherwise SOCKS isolation"
+    checks.append(Check("INFO", "Rotation mode", f"{config.rotation_mode} - {mode_detail}"))
+
     controller: TorController | None = None
     try:
         controller = TorController.from_config(config)
@@ -162,7 +171,17 @@ def run_checks(
                 )
             )
     except (TorControlError, OSError) as exc:
-        checks.append(Check("FAIL", "Control port", str(exc)))
+        if socks_allowed:
+            checks.append(
+                Check(
+                    "WARN",
+                    "Control port",
+                    f"{exc} Rotation mode '{config.rotation_mode}' uses SOCKS isolation "
+                    "instead. This is expected with Orbot, which never exposes its control port.",
+                )
+            )
+        else:
+            checks.append(Check("FAIL", "Control port", str(exc)))
     finally:
         if controller is not None:
             controller.close()
@@ -176,7 +195,8 @@ def run_checks(
             Check(
                 "FAIL",
                 "SOCKS port",
-                f"cannot connect to {config.socks_host}:{config.socks_port}",
+                f"cannot connect to {config.socks_host}:{config.socks_port}; "
+                "rotation needs this proxy (in Orbot, enable the SOCKS proxy)",
             )
         )
 

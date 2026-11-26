@@ -191,9 +191,11 @@ Chrome windows still use your direct connection.
 
 Android Chrome does **not** have a built-in SOCKS proxy setting. Use one of these:
 
-- **Orbot (VPN mode)** — routes Chrome and other apps through Tor. Use Orbot’s
-  own new-identity control, or point IP Changer at Orbot’s control port if you
-  have enabled it.
+- **Orbot (VPN mode)** — routes Chrome and other apps through Tor. Orbot never
+  exposes its control port to other apps, so `SIGNAL NEWNYM` is not available
+  from Termux. IP Changer can still rotate its own SOCKS identity (see
+  [Rotation modes](#rotation-modes)); Orbot's VPN traffic itself is rotated with
+  Orbot's own new-identity control.
 - **A SOCKS5-capable browser or proxy/VPN front-end** — advanced; make sure it
   targets `127.0.0.1:9050`.
 - **Desktop browser** — the simplest way to test per-app proxy settings with the
@@ -213,16 +215,39 @@ ipchanger ip          # the exit IP IP Changer sees through Tor
 
 Full browser and Android notes: [`docs/BROWSER_SETUP.md`](docs/BROWSER_SETUP.md).
 
+## Rotation modes
+
+`rotation_mode` selects how a new exit is requested.
+
+| Mode | How it rotates | Needs |
+|------|----------------|-------|
+| `control` | `SIGNAL NEWNYM` on the control port | A reachable control port (desktop Tor, Termux Tor) |
+| `socks` | A fresh SOCKS5 username/password per attempt; Tor isolates the circuit by those credentials | Only the SOCKS port (works with **Orbot**) |
+| `auto` (default) | Tries the control port, falls back to SOCKS when it is refused | Either |
+
+```bash
+ipchanger rotate --mode socks          # one rotation, this call only
+ipchanger config set rotation_mode socks
+ipchanger doctor                       # shows the mode and why control is unavailable
+```
+
+In `socks` mode the rotator generates a throwaway identity, verifies that the
+exit IP changed, and logs `"mode": "socks"`. This proves rotation works through
+a SOCKS-only proxy such as Orbot. It does **not** silently move other apps:
+each app only gets a new exit when it sends its own traffic through that SOCKS
+proxy. A SOCKS proxy without credentials cannot be told to build a new circuit
+from outside, which is why Orbot's VPN mode has its own new-identity button.
+
 ## Control panel
 
 ```text
-IP Changer                                                       v1.2.0
+IP Changer                                                       v1.3.0
 ──────────────────────────────────────────────────────────────────────
  █ CONNECTED   Tor exit confirmed                          up 01:24:37
  Exit IP        185.220.101.42       Interval       2m · jitter 0%
  Verification   Tor exit confirmed   Last change    12:34:56 · 12s ago
  Rotates        in 1m 48s            Rotations      42 ok · 0 failed
- Session        01:24:37             Proxy          127.0.0.1:9050 (SOCKS5)
+ Session        01:24:37             SOCKS5         127.0.0.1:9050 · auto
  Recent activity ─────────────────────────────────────────────────────
  12:34:56  rotate   51.15.43.8 → 185.220.101.42  ·  tor ✓  ·  842 ms
  12:32:56  rotate   185.220.101.42 → 51.15.43.8  ·  tor ✓  ·  901 ms
@@ -235,7 +260,7 @@ Apps only get a new exit IP when they use the SOCKS5 proxy at 127.0.0.1:9050.
 | Key | Action |
 |-----|--------|
 | `s` | Start or stop the background daemon. |
-| `r` | Rotate now: `SIGNAL NEWNYM`, wait, verify, log. |
+| `r` | Rotate now using the configured mode, wait, verify, log. |
 | `v` | Fetch the current exit IP through Tor. |
 | `i` | Change the interval (`90`, `5m`, `1h30m`; minimum 10s). |
 | `j` | Change jitter (0–100% random extra delay). |
@@ -256,7 +281,8 @@ ipchanger doctor              # check Tor, auth, SOCKS, daemon and exit IP
 ipchanger start               # start automatic rotation in the background
 ipchanger status              # service, exit IP, last change, countdown
 ipchanger status --json       # machine-readable status
-ipchanger rotate              # NEWNYM once, wait, verify, log
+ipchanger rotate              # rotate once (mode from config), verify, log
+ipchanger rotate --mode socks # force SOCKS-identity rotation (Orbot)
 ipchanger ip                  # current Tor exit IP
 ipchanger logs --follow       # follow rotation events
 ipchanger logs --off          # stop writing new log entries
@@ -286,6 +312,7 @@ ipchanger config set interval 5m
 ipchanger config set jitter 20             # add 0–20% random delay
 ipchanger config set log_enabled false     # same as: ipchanger logs --off
 ipchanger config set require_tor true      # fail if IsTor cannot be confirmed
+ipchanger config set rotation_mode socks   # auto (default), control or socks
 ipchanger config set check_urls '["https://check.torproject.org/api/ip"]'
 ipchanger config reset
 ipchanger restart                          # apply changes to a running daemon
@@ -304,6 +331,7 @@ ipchanger restart                          # apply changes to a running daemon
 | `control_port` | `9051` | Tor control port. |
 | `socks_port` | `9050` | Tor SOCKS port used by apps and verification. |
 | `auth_method` | `auto` | `auto`, `cookie`, `password` or `null`. |
+| `rotation_mode` | `auto` | `auto`, `control` or `socks`; `socks` works with Orbot. |
 
 Paths:
 

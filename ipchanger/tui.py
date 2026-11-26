@@ -289,7 +289,7 @@ def dashboard_rows(
         ("Interval", f"{format_duration(config.interval)} {dot} jitter {config.jitter}%"),
         ("Last change", last_change),
         ("Rotations", f"{state.total_rotations} ok {dot} {state.total_failures} failed"),
-        ("Proxy", f"{socks} (SOCKS5)"),
+        ("SOCKS5", f"{socks} {dot} {config.rotation_mode}"),
     ]
 
 
@@ -753,7 +753,13 @@ def _draw(stdscr: Any, dash: _Dashboard, visual: Visual) -> None:
         text, role = message
     elif running:
         socks = f"{dash.config.socks_host}:{dash.config.socks_port}"
-        text = f"Apps only get a new exit IP when they use the SOCKS5 proxy at {socks}."
+        if dash.config.rotation_mode == "socks":
+            text = (
+                f"SOCKS mode: each rotation uses a fresh identity on {socks}; "
+                "apps still need to use that proxy themselves."
+            )
+        else:
+            text = f"Apps only get a new exit IP when they use the SOCKS5 proxy at {socks}."
         role = "muted"
         if not dash.config.log_enabled:
             text += " Activity logging is off."

@@ -36,7 +36,7 @@ during a rotation.
 | `ipchanger/config.py` | Defaults, paths, JSON config, validation, duration parsing, atomic writes. |
 | `ipchanger/control.py` | Tor control protocol: `PROTOCOLINFO`, cookie/password/null auth, `SIGNAL NEWNYM`, `GETINFO version`. |
 | `ipchanger/torhttp.py` | Minimal SOCKS5 client and HTTPS GET, IP parsing, Tor check, fallback endpoints. |
-| `ipchanger/rotator.py` | One rotation: baseline, rate limit, NEWNYM, wait for a new exit, verify, persist, log. |
+| `ipchanger/rotator.py` | One rotation: baseline, control `SIGNAL NEWNYM` or a fresh SOCKS identity, wait for a new exit, verify, persist, log. |
 | `ipchanger/scheduler.py` | Long-running loop, interval, optional jitter, stop event, next-rotation timestamp. |
 | `ipchanger/state.py` | `State` dataclass, atomic state file, rotated JSONL log, PID helpers, `flock` lock. |
 | `ipchanger/daemon.py` | Detach `ipchanger run`, write/read PID, graceful stop, restart. |
@@ -74,6 +74,38 @@ during a rotation.
    manual `ipchanger rotate` from racing the daemon.
 8. **Schedule the next one.** The scheduler writes `next_rotation` as a Unix
    timestamp so the panel/`status` can show a live countdown.
+
+## Rotation modes
+
+Step 4 above is the `control` strategy. `Config.rotation_mode` selects it:
+
+| Mode | What the rotator does | Needs |
+|------|-----------------------|-------|
+| `control` | `SIGNAL NEWNYM`, then wait for a new exit | A reachable control port |
+| `socks` | For each attempt, generate a fresh SOCKS5 username/password, fetch the exit IP through it, retry until the IP changes | Only the SOCKS port |
+| `auto` | Probe the control port; use `control` if it answers, otherwise `socks` | Either |
+
+Tor isolates circuits by SOCKS credentials when `IsolateSOCKSAuth` is on,
+which is the default. A previously unseen username/password pair therefore
+gets its own circuit and, almost always, a different exit. This is the only
+rotation path available on Android with Orbot, because Orbot never exposes
+its control socket to other apps.
+
+Consequences worth knowing:
+
+- The SOCKS identity is ephemeral. Rotation proves that a fresh identity
+  produces a fresh exit; it does not reconfigure other apps. A client only
+  benefits when it sends traffic through that SOCKS proxy.
+- `socks` mode does not touch `last_newnym`; the 10-second NEWNYM rate limit
+  does not apply. It still retries within `change_timeout`, with a cap of
+  `SOCKS_ATTEMPTS` (8) identities.
+- If the exit stays the same after every identity, the result is a successful
+  rotation with a warning that the proxy may not isolate by credentials,
+  rather than a silent "nothing happened".
+- A client that keeps using one credential pair keeps one circuit. To get a
+  new exit, it must present a new pair (or reconnect after the circuit is
+  discarded).
+
 
 ## Tor control protocol in one page
 

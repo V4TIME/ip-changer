@@ -182,6 +182,7 @@ ipchanger restart
 | `control_port` | `9051` | Tor control port. |
 | `socks_port` | `9050` | Tor SOCKS port used for verification. |
 | `auth_method` | `auto` | `auto`, `cookie`, `password` or `null`. |
+| `rotation_mode` | `auto` | `auto`, `control` or `socks`; `socks` works with Orbot. |
 
 Examples:
 
@@ -189,6 +190,7 @@ Examples:
 ipchanger config set jitter 20
 ipchanger config set require_tor true
 ipchanger config set change_timeout 60
+ipchanger config set rotation_mode socks    # control, socks or auto
 ipchanger config set check_urls '["https://check.torproject.org/api/ip"]'
 ipchanger config list
 ipchanger config reset
@@ -234,7 +236,7 @@ Logs are JSONL (one JSON object per line), private (`0600`) and rotated by size.
 
 | Symptom | Fix |
 |---------|-----|
-| `cannot connect to the Tor control port` | Start Tor (`sudo systemctl start tor`, or `tor &` in Termux) and run `ipchanger doctor`. |
+| `cannot connect to the Tor control port` | Start Tor (`sudo systemctl start tor`, or `tor &` in Termux) and run `ipchanger doctor`. With Orbot this is expected: use `rotation_mode=socks`. |
 | Cookie/authentication error | Add your user to the Tor group and log in again, or use `auth_method=password`. |
 | `SOCKS port` connection refused | Tor is not running or `SocksPort` is disabled. |
 | Exit IP unchanged | Tor may reuse an exit; wait for the next interval or rotate again. |

@@ -107,6 +107,32 @@ class CliTests(unittest.TestCase):
         self.assertEqual(payload["new_ip"], "2.2.2.2")
         self.assertTrue(payload["ok"])
 
+    def test_rotate_mode_override_reaches_the_rotator(self) -> None:
+        seen: list[str] = []
+
+        class FakeRotator:
+            def __init__(self, config: object) -> None:
+                seen.append(getattr(config, "rotation_mode", "?"))
+
+            def rotate(self, verify: bool = True, wait: bool = True) -> RotationResult:
+                return RotationResult(
+                    ok=True,
+                    changed=True,
+                    old_ip="1.1.1.1",
+                    new_ip="2.2.2.2",
+                    is_tor=True,
+                    source="test",
+                    error=None,
+                    duration_ms=3,
+                    mode="socks",
+                )
+
+        with patch("ipchanger.cli.Rotator", FakeRotator):
+            code, out, err = self.run_cli("rotate", "--mode", "socks")
+        self.assertEqual(code, 0, err)
+        self.assertEqual(seen, ["socks"])
+        self.assertIn("mode=socks", out)
+
     def test_global_config_without_command_opens_panel(self) -> None:
         config_path = Path(self.temp.name) / "custom.json"
         with patch("ipchanger.cli.run_panel", return_value=0) as panel:

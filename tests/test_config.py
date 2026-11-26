@@ -52,7 +52,14 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.interval, 120)
         self.assertEqual(config.control_port, 9051)
         self.assertEqual(config.socks_port, 9050)
+        self.assertEqual(config.rotation_mode, "auto")
         self.assertGreaterEqual(config.min_interval, 10)
+
+    def test_invalid_rotation_mode_is_rejected(self) -> None:
+        with self.assertRaises(ConfigError):
+            Config(rotation_mode="newnym").validate()
+        for mode in ("auto", "control", "socks"):
+            self.assertEqual(Config(rotation_mode=mode).validate().rotation_mode, mode)
 
     def test_interval_below_rate_limit_is_rejected(self) -> None:
         with self.assertRaises(ConfigError):

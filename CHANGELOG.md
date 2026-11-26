@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.0 - 2026-11-25
+
+- Added SOCKS-identity rotation (`rotation_mode=socks`): every attempt uses a
+  fresh SOCKS5 username/password, so Tor builds a new circuit even when the
+  control port is unreachable. This is the mode that works with **Orbot**,
+  which never exposes its control socket to other apps.
+- Added `rotation_mode` (`auto`, `control`, `socks`) with validation; `auto`
+  probes the control port and falls back to SOCKS.
+- Added `ipchanger rotate --mode {auto,control,socks}` and `mode` in JSON
+  output, log records and `status`.
+- `doctor` now reports the rotation mode, downgrades an unreachable control
+  port to a warning when SOCKS is allowed, and explains the Orbot case.
+- The panel's Proxy row shows the rotation mode; its footer explains that SOCKS
+  rotation does not redirect other apps by itself.
+- Verified against a real Tor 0.4.9.16 with the control port closed: two
+  rotations produced distinct, confirmed Tor exit IPs in `socks` mode.
+
 ## 1.2.0 - 2026-11-24
 
 - Rebuilt the control panel: one filled connection bar (connected, connecting,

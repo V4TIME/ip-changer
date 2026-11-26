@@ -364,8 +364,17 @@ def parse_exit_payload(text: str) -> tuple[str, bool | None]:
     raise IPCheckError(f"response did not contain an IP address: {stripped[:160]!r}")
 
 
-def get_exit_ip(config: Config) -> ExitIP:
-    """Ask the configured check services which exit IP Tor is currently using."""
+def get_exit_ip(
+    config: Config,
+    username: str | None = None,
+    password: str | None = None,
+) -> ExitIP:
+    """Ask the configured check services which exit IP Tor is currently using.
+
+    *username*/*password* are forwarded to the SOCKS5 handshake. Tor isolates
+    circuits by SOCKS credentials, so a fresh pair is a fresh exit node even
+    when the control port is unavailable (the Orbot case).
+    """
 
     errors: list[str] = []
     for url in config.check_urls:
@@ -376,6 +385,8 @@ def get_exit_ip(config: Config) -> ExitIP:
                 config.socks_port,
                 timeout=min(30.0, max(5.0, float(config.change_timeout))),
                 user_agent=config.user_agent,
+                username=username,
+                password=password,
             )
             ip, is_tor = parse_exit_payload(response.text)
             if is_tor is False:

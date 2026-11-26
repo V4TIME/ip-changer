@@ -119,17 +119,30 @@ Orbot routes Android apps through Tor using Android's VPN API. Install Orbot,
 enable **VPN mode**, and select Chrome (or all apps). Chrome then uses Tor without
 any browser settings.
 
-If you also want IP Changer to rotate that Tor instance, enable Orbot's control
-port (if your Orbot build exposes it) and configure IP Changer accordingly:
+Orbot does **not** expose its control socket to other apps, so `SIGNAL NEWNYM`
+is not available from Termux. To rotate the circuits IP Changer creates itself,
+use SOCKS-identity rotation:
 
 ```bash
+ipchanger config set rotation_mode socks
+ipchanger config set socks_port 9050     # Orbot's SOCKS port
+ipchanger doctor                          # control port WARN is expected here
+ipchanger rotate --mode socks
+```
+
+This rotates and verifies through Orbot's SOCKS proxy. It does not move apps
+that Orbot carries in VPN mode — use Orbot's own **New Identity** action for
+that traffic.
+
+If you run a Tor daemon that *does* expose a control port (desktop Tor, Termux
+Tor), keep `rotation_mode=auto` or set `control` and configure the port:
+
+```bash
+ipchanger config set rotation_mode auto
 ipchanger config set control_port 9051
 ipchanger config set auth_method auto
 ipchanger doctor
 ```
-
-Orbot versions differ; if the control port is unavailable, use Orbot's own
-**New Identity** action instead.
 
 ### 2. A SOCKS5-capable browser or VPN front-end
 

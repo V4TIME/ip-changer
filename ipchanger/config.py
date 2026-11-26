@@ -12,7 +12,7 @@ from typing import Any, Iterable
 
 APP_NAME = "ipchanger"
 DISPLAY_NAME = "IP Changer"
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 MIN_NEWNYM_INTERVAL = 10  # Tor accepts SIGNAL NEWNYM at most once per 10 s.
 DEFAULT_CHECK_URLS = [
@@ -123,6 +123,12 @@ class Config:
     verify: bool = True
     wait_for_change: bool = True
     require_tor: bool = False
+    # auto: use the control port when it works, otherwise SOCKS isolation.
+    # control: SIGNAL NEWNYM (needs the Tor control port).
+    # socks: a fresh SOCKS username/password per attempt; Tor builds a new
+    # circuit for it (IsolateSOCKSAuth). Works with Orbot, which never exposes
+    # its control socket to other apps.
+    rotation_mode: str = "auto"
     change_timeout: int = 45
     poll_interval: float = 2.0
     check_urls: list[str] = field(default_factory=lambda: list(DEFAULT_CHECK_URLS))
@@ -164,6 +170,8 @@ class Config:
             raise ConfigError("socks_host must not be empty")
         if self.auth_method not in {"auto", "cookie", "password", "null"}:
             raise ConfigError("auth_method must be auto, cookie, password or null")
+        if self.rotation_mode not in {"auto", "control", "socks"}:
+            raise ConfigError("rotation_mode must be auto, control or socks")
         if self.auth_method == "password" and not self.password:
             raise ConfigError("auth_method=password requires a password")
         if self.change_timeout < 5:

@@ -1,4 +1,4 @@
-# Audit — 2026-11-24
+# Audit — 2026-11-25
 
 Scope: the terminal control panel (`ipchanger/`) and the Android note app
 (`noteapp/`). Severity is about user impact, not code style.
@@ -20,12 +20,14 @@ Scope: the terminal control panel (`ipchanger/`) and the Android note app
 | 11 | **Medium** | Widget order depended on `add_widget(..., index=0)` behaving as a visual insert. | Widgets are added in display order. |
 | 12 | **Low** | No divider between the list header and the first card. | 1 px hairline. |
 | 13 | **Low** | Earlier audit notes claimed a bundled custom font and private storage that did not exist. | The font is now actually bundled (`noteapp/assets/DejaVuSansMono.ttf`) and storage is actually private. |
+| 14 | **High** | Rotation only worked through `SIGNAL NEWNYM`. Orbot never exposes its control port to other apps, so on Android the documented workflow could not rotate at all. | Added `rotation_mode=socks`: a fresh SOCKS5 username/password per attempt, which Tor isolates into a new circuit. `auto` probes control and falls back. Verified live against real Tor with the control port closed. |
+| 15 | **Medium** | `doctor` reported an unreachable control port as `FAIL` even when SOCKS rotation was configured, implying the tool was broken when it was not. | Control-port failure is now `WARN` when the mode allows SOCKS, with the Orbot explanation; the mode itself is an explicit row. |
 
 ## Verification performed
 
 | Check | Result |
 | --- | --- |
-| `python -m unittest discover -s tests` | 56 passed |
+| `python -m unittest discover -s tests` | 64 passed |
 | `python -m unittest noteapp.tests.test_store` | 14 passed |
 | `python -m compileall ipchanger noteapp` | clean |
 | Panel under a pty at 100×30, 80×24, 60×18, 44×16, 30×10 | exit 0, no traceback |
@@ -33,6 +35,10 @@ Scope: the terminal control panel (`ipchanger/`) and the Android note app
 | Rendered frames at 420×800 and 360×740 | reviewed; layout and contrast verified |
 | `.github/workflows/apk.yml` on GitHub Actions | **success** — `pixnote-debug-apk`, 41.8 MB ([run 45619201234](https://github.com/V4TIME/ip-changer/actions/runs/45619201234)) |
 | `tests` workflow on the same commit | 3.10 / 3.11 / 3.13 all green |
+| Live Tor 0.4.9.16, `rotation_mode=control` | two rotations changed the exit IP: `203.55.81.1 → 192.42.116.56 → 192.42.116.143` |
+| Live Tor 0.4.9.16, `rotation_mode=socks`, control port deliberately closed | two rotations changed the exit IP: `192.42.116.143 → 23.191.200.81 → 203.55.81.2`, `mode: "socks"` |
+| Live Tor 0.4.9.16, `rotation_mode=auto` | fell back to `socks` with the control port closed, then used `control` after it was restored |
+| `doctor` with SOCKS mode and a closed control port | control port `WARN` with the Orbot explanation; SOCKS and exit IP `OK` |
 
 ### What the APK build had to fix
 
@@ -97,13 +103,18 @@ three-card feature grids, dim-only secondary text, ASCII box art.
    `android.allow_backup = False` limits exposure, but a rooted device can read
    them. Encryption is the next security feature, not a bug.
 2. **Tor mode is not a VPN.** It rotates the exit node; apps only benefit when
-   they send traffic to the SOCKS proxy. The panel now says this on screen.
-3. **No exit selection.** Tor chooses the exit; there is no country picker, by
+   they send traffic to the SOCKS proxy. The panel says this on screen.
+3. **SOCKS rotation is per-identity, not global.** A fresh username/password
+   gets a fresh circuit, but a client that keeps using one credential pair
+   keeps one exit. Orbot in VPN mode routes apps itself, so its own
+   new-identity control is what moves that traffic. The tool proves SOCKS-only
+   rotation works; it cannot reconfigure other apps.
+4. **No exit selection.** Tor chooses the exit; there is no country picker, by
    design of the network.
-4. **The APK is CI-built and debug-signed.** It is proven to compile and
+5. **The APK is CI-built and debug-signed.** It is proven to compile and
    package, but it has not been run on a device, and a debug key is not
    suitable for store distribution.
-5. **Pinned build-time versions age.** `pip-constraints.txt` pins
+6. **Pinned build-time versions age.** `pip-constraints.txt` pins
    `charset-normalizer` and `pip` to work around python-for-android's
    resolver and its pip self-upgrade. Re-check both when Buildozer or
    python-for-android is upgraded.

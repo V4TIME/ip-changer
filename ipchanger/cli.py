@@ -215,6 +215,7 @@ def cmd_status(args: argparse.Namespace) -> int:
         else "unknown"
     )
     print(f"Tor check     : {tor_text}")
+    print(f"Rotation mode : {config.rotation_mode}")
     print(f"Previous IP   : {state.previous_ip or '-'}")
     last_change = (
         f"{payload['last_success']} ({human_age(state.last_success)})"
@@ -240,19 +241,24 @@ def cmd_status(args: argparse.Namespace) -> int:
 
 def cmd_rotate(args: argparse.Namespace) -> int:
     config = _load(args)
+    if getattr(args, "mode", None):
+        config.rotation_mode = args.mode
+        config.validate()
     rotator = Rotator(config)
     result = rotator.rotate(verify=not args.no_verify, wait=not args.no_wait)
     if args.json:
         print(json.dumps(result.as_dict(), indent=2))
     elif result.ok:
+        mode = f", mode={result.mode}" if result.mode else ""
         if result.new_ip:
             change = "changed" if result.changed else "unchanged"
             print(
                 f"OK: {result.old_ip or '?'} -> {result.new_ip} ({change}, "
-                f"{result.duration_ms} ms, Tor={result.is_tor})"
+                f"{result.duration_ms} ms, Tor={result.is_tor}{mode})"
             )
         else:
-            print(f"OK: NEWNYM sent ({result.duration_ms} ms; verification disabled)")
+            action = "fresh SOCKS identity used" if result.mode == "socks" else "NEWNYM sent"
+            print(f"OK: {action} ({result.duration_ms} ms; verification disabled)")
         if result.error:
             print(f"Warning: {result.error}")
     else:
@@ -471,10 +477,17 @@ Traffic must be sent through Tor's SOCKS port, normally 127.0.0.1:9050.
     status.add_argument("--json", action="store_true", help="machine-readable output")
     status.set_defaults(func=cmd_status)
 
-    rotate = subparsers.add_parser("rotate", help="send NEWNYM once and verify the new IP")
+    rotate = subparsers.add_parser(
+        "rotate", help="rotate the exit IP and verify the new one"
+    )
     rotate.add_argument("--json", action="store_true", help="machine-readable output")
     rotate.add_argument("--no-verify", action="store_true", help="do not check the new exit IP")
     rotate.add_argument("--no-wait", action="store_true", help="do not wait for the IP to change")
+    rotate.add_argument(
+        "--mode",
+        choices=["auto", "control", "socks"],
+        help="rotation strategy for this call: control port, SOCKS isolation, or auto",
+    )
     rotate.set_defaults(func=cmd_rotate)
 
     ip_command = subparsers.add_parser("ip", help="show the current Tor exit IP")

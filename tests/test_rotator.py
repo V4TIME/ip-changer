@@ -42,12 +42,19 @@ class FailingController(FakeController):
         raise RuntimeError("control port is down")
 
 
+class UnreachableController(FakeController):
+    def __enter__(self) -> "UnreachableController":
+        raise RuntimeError("cannot connect to the Tor control port")
+
+
 class RotatorTests(unittest.TestCase):
     def make_rotator(
         self,
         ips: list[str],
         controller: Any | None = None,
         state: State | None = None,
+        identities: list[str] | None = None,
+        **config_kwargs: Any,
     ) -> tuple[Rotator, StateStore, Path, list[float]]:
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
@@ -58,12 +65,23 @@ class RotatorTests(unittest.TestCase):
         values = list(ips)
         clock = FakeClock()
 
-        def ip_getter(_config: Config) -> ExitIP:
-            value = values.pop(0) if values else "1.1.1.1"
+        def ip_getter(
+            _config: Config,
+            username: str | None = None,
+            password: str | None = None,
+        ) -> ExitIP:
+            if identities is not None and username is not None:
+                identities.append(username)
+            value = values.pop(0) if values else (ips[-1] if ips else "1.1.1.1")
             return ExitIP(ip=value, is_tor=True, source="test")
 
         rotator = Rotator(
-            Config(interval=10, change_timeout=5, poll_interval=0.25).validate(),
+            Config(
+                interval=10,
+                change_timeout=5,
+                poll_interval=0.25,
+                **config_kwargs,
+            ).validate(),
             state_store=store,
             log_writer=LogWriter(Config().validate(), root / "ipchanger.log"),
             controller_factory=lambda _config: controller or FakeController(),
@@ -154,6 +172,75 @@ class RotatorTests(unittest.TestCase):
             self.assertIsNone(result.new_ip)
             self.assertIn("not Tor", result.error or "")
             self.assertEqual(store.load().total_failures, 1)
+
+    def test_control_mode_is_reported(self) -> None:
+        controller = FakeController()
+        rotator, _, root, _ = self.make_rotator(["2.2.2.2"], controller=controller)
+        result = rotator.rotate()
+        self.assertEqual(result.mode, "control")
+        self.assertEqual(controller.signals, 1)
+        self.assertEqual(result.as_dict()["mode"], "control")
+        records = read_log_records(root / "ipchanger.log")
+        self.assertEqual(records[-1]["mode"], "control")
+
+    def test_socks_mode_uses_a_fresh_identity_and_no_controller(self) -> None:
+        identities: list[str] = []
+        rotator, _, root, _ = self.make_rotator(
+            ["2.2.2.2"],
+            controller=UnreachableController(),
+            identities=identities,
+            rotation_mode="socks",
+        )
+        result = rotator.rotate()
+        self.assertTrue(result.ok)
+        self.assertEqual(result.mode, "socks")
+        self.assertEqual(len(identities), 1)
+        self.assertTrue(identities[0].startswith("ipc-"))
+        records = read_log_records(root / "ipchanger.log")
+        self.assertEqual(records[-1]["mode"], "socks")
+
+    def test_socks_mode_retries_with_a_fresh_identity(self) -> None:
+        identities: list[str] = []
+        rotator, _, _, _ = self.make_rotator(
+            ["1.1.1.1", "1.1.1.1", "2.2.2.2"],
+            identities=identities,
+            rotation_mode="socks",
+        )
+        result = rotator.rotate()
+        self.assertTrue(result.ok)
+        self.assertTrue(result.changed)
+        self.assertEqual(result.new_ip, "2.2.2.2")
+        self.assertEqual(len(identities), 3)
+        self.assertEqual(len(set(identities)), 3)
+
+    def test_socks_mode_warns_when_identity_does_not_isolate(self) -> None:
+        rotator, _, _, _ = self.make_rotator(["1.1.1.1"], rotation_mode="socks")
+        result = rotator.rotate()
+        self.assertTrue(result.ok)
+        self.assertFalse(result.changed)
+        self.assertIn("IsolateSOCKSAuth", result.error or "")
+
+    def test_auto_mode_falls_back_to_socks(self) -> None:
+        identities: list[str] = []
+        rotator, _, _, _ = self.make_rotator(
+            ["2.2.2.2"],
+            controller=UnreachableController(),
+            identities=identities,
+            rotation_mode="auto",
+        )
+        result = rotator.rotate()
+        self.assertTrue(result.ok)
+        self.assertEqual(result.mode, "socks")
+        self.assertEqual(len(identities), 1)
+
+    def test_auto_mode_prefers_the_control_port(self) -> None:
+        controller = FakeController()
+        rotator, _, _, _ = self.make_rotator(
+            ["2.2.2.2"], controller=controller, rotation_mode="auto"
+        )
+        result = rotator.rotate()
+        self.assertEqual(result.mode, "control")
+        self.assertEqual(controller.signals, 1)
 
 
 class FakeRotator:
